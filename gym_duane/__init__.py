@@ -7,3 +7,8 @@ register(
     id='Banana-v0',
     entry_point='gym_duane.envs:BananaEnv',
 )
+
+register(
+    id='PymunkPong-v0',
+    entry_point='gym_duane.envs:PongEnv',
+)

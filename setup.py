@@ -5,5 +5,7 @@ setup(name='gym_duane',
       version='0.0.1',
       install_requires=['gym>=0.2.3',
                         'pandas',
-                        'cfg_load']
+                        'cfg_load',
+                        'pymunk',
+                        'pyglet']
       )
