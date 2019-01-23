@@ -8,7 +8,7 @@ import unittest
 import gym
 
 # internal modules
-import gym_banana
+import gym_duane
 
 
 class Environments(unittest.TestCase):
