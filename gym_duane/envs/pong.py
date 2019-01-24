@@ -5,7 +5,8 @@ import pyglet.window.key as key
 from math import radians
 import gym
 from gym.utils import seeding
-import time
+import numpy as np
+from datetime import datetime
 
 
 class PongEnv(gym.Env):
@@ -40,6 +41,9 @@ class PongEnv(gym.Env):
         self.bottom_rail = Rail(position=(self.window.width / 2, 20), space=self.space, width=self.window.width)
         handler = self.space.add_default_collision_handler()
         handler.separate = self.coll_seperate
+
+        self.screen = pyglet.image.SolidColorImagePattern((255,255,255,255)).create_image(self.window.width,
+                                                                                      self.window.height)
 
     def coll_seperate(self, arbiter, space, data):
         if isinstance(arbiter.shapes[0].thing, Paddle) and isinstance(arbiter.shapes[1].thing, Rail):
@@ -93,6 +97,8 @@ class PongEnv(gym.Env):
                  use this for learning.
         """
 
+        # step the simulation
+        start = datetime.now()
         for t in range(self.sim_steps):
             dt = self.step_time / self.sim_steps
             self.space.step(dt)
@@ -100,11 +106,24 @@ class PongEnv(gym.Env):
             self.player2.update(dt)
             self.update(dt)
 
-        ob = None
+        print(f'step simulation {datetime.now() - start}')
+        start = datetime.now()
+        image_data = pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
+        print(f'get framebuffer {datetime.now() - start}')
+        start = datetime.now()
+        image = image_data.get_data('RGBA', image_data.width * 4)
+        #image_data.set_data('RGB', image_data.width * 3, self.screen)
+        print(f'get RGB image {datetime.now() - start}')
+        start = datetime.now()
+        obs = np.frombuffer(image, dtype=np.uint8)
+        print(f'create numpy array {datetime.now() - start}')
+        start = datetime.now()
+        obs = obs.reshape(image_data.height, image_data.width, 4)
         reward = None
         end_game = None
+        print('extracted fb')
 
-        return ob, reward, end_game, {}
+        return obs, reward, end_game, {}
 
     def reset(self):
         """
