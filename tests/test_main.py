@@ -109,12 +109,12 @@ class Environments(unittest.TestCase):
 
     def test_pong_loop(self):
         env = gym.make('PymunkPong-v0')
-        v = UniImageViewer('test')
+        p1 = UniImageViewer('player1')
+        p2 = UniImageViewer('player2')
 
         for _ in range(3000):
-            observation, reward, done, info = env.step(0)
-            print('redering obs')
-            v.render(observation, block=False)
-            print('redering window')
+            actions = env.action_space.sample(), env.action_space.sample()
+            observation, reward, done, info = env.step(actions)
+            p1.render(observation[0], block=False)
+            p2.render(observation[1], block=False)
             env.render()
-            print('rendered window')
