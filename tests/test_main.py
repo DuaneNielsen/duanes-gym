@@ -76,10 +76,10 @@ class UniImageViewer:
         # Display the resulting frame
         cv2.imshow(self.title, image)
         if block:
-            #cv2.waitKey(0)
+            cv2.waitKey(0)
             pass
         else:
-            #cv2.waitKey(1)
+            cv2.waitKey(1)
             pass
 
     def view_input(self, model, input, output):
@@ -108,13 +108,30 @@ class Environments(unittest.TestCase):
         env.step(0)
 
     def test_pong_loop(self):
-        env = gym.make('PymunkPong-v0')
-        p1 = UniImageViewer('player1')
-        p2 = UniImageViewer('player2')
+        #try:
+            env = gym.make('PymunkPong-v0')
+            p1 = UniImageViewer('player1')
+            p2 = UniImageViewer('player2')
 
-        for _ in range(3000):
-            actions = env.action_space.sample(), env.action_space.sample()
-            observation, reward, done, info = env.step(actions)
-            p1.render(observation[0], block=False)
-            p2.render(observation[1], block=False)
-            env.render()
+            for game in range(10):
+                print(f'starting game {game}')
+                obs = env.reset()
+                done = False
+                p1_reward = 0
+                p2_reward = 0
+
+                while not done:
+                    actions = env.action_space.sample(), env.action_space.sample()
+                    observation, reward, done, info = env.step(actions)
+                    p1.render(observation[0], block=False)
+                    p2.render(observation[1], block=False)
+                    #env.render()
+
+                    p1_reward, p2_reward = reward
+
+                if p1_reward > p2_reward:
+                    print('player1 won')
+                else:
+                    print('player2 won')
+        #except Exception as e:
+        #    print(e)
