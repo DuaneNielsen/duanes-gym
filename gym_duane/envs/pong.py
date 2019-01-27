@@ -47,23 +47,38 @@ class PongEnv(gym.Env):
         self.action_set = [0, 1, 2]
         self.action_space = spaces.Discrete(3)
 
+        self.collision_handler = self.space.add_default_collision_handler()
+        self.collision_handler.begin = self.coll_begin
+        self.last_hit = None
+
+    def coll_begin(self, arbiter, space, data):
+        paddle = None
+        puck = None
+        for shape in arbiter.shapes:
+            if isinstance(shape.thing, Paddle):
+                paddle = shape.thing
+            elif isinstance(shape.thing, Puck):
+                puck = shape.thing
+        if paddle and puck:
+            self.last_hit = paddle.id
+        return True
+
     def spawn_puck(self, dt):
         direction = 1.0 if random.random() < 0.5 else -1.0
         self.puck = Puck((self.width / 2, self.height / 2), (500 * direction, 0), self.space)
+        self.last_hit = None
 
     def update(self, dt):
         for shape in self.space.shapes:
             if isinstance(shape.thing, Puck):
                 if shape.body.position.x < 0 or shape.body.position.x > self.width:
                     self.space.remove(shape.body, shape)
-                    self.spawn_puck(dt)
                     self.done = True
-                if shape.body.position.x < 0:
-                    # player 1 wins
-                    self.reward = (1.0, -1.0)
-                if shape.body.position.x > self.width:
-                    # player 2 wins
-                    self.reward = (-1.0, 1.0)
+                    if self.last_hit is 'player1':
+                        self.reward = (1.0, -1.0)
+                    if self.last_hit is 'player2':
+                        self.reward = (-1.0, 1.0)
+                    self.spawn_puck(dt)
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)

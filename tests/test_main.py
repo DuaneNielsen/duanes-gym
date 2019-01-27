@@ -115,7 +115,7 @@ class Environments(unittest.TestCase):
             p1 = UniImageViewer('player1')
             p2 = UniImageViewer('player2')
 
-            for game in range(10):
+            for game in range(50):
                 print(f'starting game {game}')
                 obs = env.reset()
                 done = False
@@ -133,7 +133,9 @@ class Environments(unittest.TestCase):
 
                 if p1_reward > p2_reward:
                     print('player1 won')
-                else:
+                if p1_reward < p2_reward:
                     print('player2 won')
+                else:
+                    print('nobody won')
         except Exception as e:
             print(e)
