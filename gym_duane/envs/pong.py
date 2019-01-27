@@ -29,8 +29,8 @@ class PongEnv(gym.Env):
         self.draw_options = DrawOptions(self.vscreen)
 
         self.space = pymunk.Space()
-        self.sim_steps = 3  # number of simulation steps per env step
-        self.step_time = 0.03  # amount of simulation time per env step (seconds)
+        self.sim_steps = 10  # number of simulation steps per env step
+        self.step_time = 0.05  # amount of simulation time per env step (seconds)
 
         self.player1 = Paddle(id='player1', position=(20, self.height / 2), angle=0, space=self.space,
                               window_height=self.height)
@@ -44,7 +44,7 @@ class PongEnv(gym.Env):
 
         self.done = False
         self.reward = 0
-        self.action_set = ['UP', 'DOWN', 'STOP']
+        self.action_set = [0, 1, 2]
         self.action_space = spaces.Discrete(3)
 
     def spawn_puck(self, dt):
@@ -116,8 +116,7 @@ class PongEnv(gym.Env):
         self.space.debug_draw(self.draw_options)
         obs = pygame.surfarray.array3d(self.vscreen)
         obs = obs.swapaxes(0, 1)
-        #obs = np.frombuffer(image, dtype=np.uint8)
-        #obs = obs.reshape(image_data.height, image_data.width, 4)
+
         # now we have to oompute player 2's perspective
         transform = np.float32([[-1, 0, self.width],
                                 [0, 1, 0]
@@ -187,10 +186,11 @@ class Paddle:
         return ['up', 'down', 'stop']
 
     def update(self, dt):
-        if self.shape.body.position.y < self.height / 2 + 20:
-            self.shape.body.velocity = (0, 50)
-        if self.shape.body.position.y > self.window_height - self.height / 2 - 20:
-            self.shape.body.velocity = (0, -50)
+        pass
+        # if self.shape.body.position.y < self.height / 2 + 20:
+        #     self.shape.body.velocity = (0, 50)
+        # if self.shape.body.position.y > self.window_height - self.height / 2 - 20:
+        #     self.shape.body.velocity = (0, -50)
 
 
 class Rail:

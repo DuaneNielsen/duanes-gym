@@ -7,5 +7,6 @@ setup(name='gym_duane',
                         'pandas',
                         'cfg_load',
                         'pymunk',
-                        'pyglet']
+                        'pygame',
+                        'opencv-python']
       )

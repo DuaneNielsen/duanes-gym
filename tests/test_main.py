@@ -6,7 +6,7 @@ import unittest
 
 # 3rd party modules
 import gym
-#from .viewer import UniImageViewer
+# from .viewer import UniImageViewer
 
 # internal modules
 import gym_duane
@@ -14,7 +14,7 @@ import time
 
 import cv2
 import numpy as np
-import torch
+
 
 def to_numpyRGB(image, invert_color=False):
     """
@@ -23,7 +23,7 @@ def to_numpyRGB(image, invert_color=False):
     :params invert_color: perform RGB -> BGR convert
     :return: the output image
     """
-    if type(image) == torch.Tensor:
+    if type(image) == 'torch.Tensor':
         image = image.cpu().detach().numpy()
     # remove batch dimension
     if len(image.shape) == 4:
@@ -57,6 +57,7 @@ def to_numpyRGB(image, invert_color=False):
     else:
         raise Exception(f'dont know how to display color of dimension {smallest}')
     return image
+
 
 class UniImageViewer:
     def __init__(self, title='title', screen_resolution=(640, 480), format=None, channels=None, invert_color=True):
@@ -93,6 +94,7 @@ class UniImageViewer:
     def update(self, image):
         self.render(image)
 
+
 class Environments(unittest.TestCase):
 
     def test_bannana(self):
@@ -108,7 +110,7 @@ class Environments(unittest.TestCase):
         env.step(0)
 
     def test_pong_loop(self):
-        #try:
+        try:
             env = gym.make('PymunkPong-v0')
             p1 = UniImageViewer('player1')
             p2 = UniImageViewer('player2')
@@ -125,7 +127,7 @@ class Environments(unittest.TestCase):
                     observation, reward, done, info = env.step(actions)
                     p1.render(observation[0], block=False)
                     p2.render(observation[1], block=False)
-                    #env.render()
+                    # env.render()
 
                     p1_reward, p2_reward = reward
 
@@ -133,5 +135,5 @@ class Environments(unittest.TestCase):
                     print('player1 won')
                 else:
                     print('player2 won')
-        #except Exception as e:
-        #    print(e)
+        except Exception as e:
+            print(e)
