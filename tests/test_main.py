@@ -142,6 +142,7 @@ class Environments(unittest.TestCase):
 
     def test_racerloop(self):
         env = gym.make('AlphaRacer2D-v0')
+        p1 = UniImageViewer('player1')
 
         for game in range(50):
             print(f'starting game {game}')
@@ -154,3 +155,4 @@ class Environments(unittest.TestCase):
                 actions = env.action_space.sample()
                 observation, reward, done, info = env.step(actions)
                 env.render()
+                #p1.render(observation[0], block=False)

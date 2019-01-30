@@ -1,5 +1,6 @@
 import pygame
 import pymunk
+from pymunk import Vec2d, Transform
 from pymunk.pygame_util import DrawOptions, to_pygame
 from math import radians
 import gym
@@ -8,20 +9,22 @@ from gym import spaces
 import numpy as np
 import cv2
 import random
-
+import math
+from threading import Timer
+import weakref
 
 class Gate:
     def __init__(self, space, x, total_height, gap_height, gap_size=50):
         top_length = total_height - gap_height - gap_size
         self.top = pymunk.Poly.create_box(space.static_body, (5, top_length))
         self.top.body.position = x, (top_length // 2) + gap_height + gap_size
-        self.top.thing = self
+        self.top.thing = weakref.ref(self)
         self.top.elasticity = 1.0
         space.add(self.top)
 
         self.bottom = pymunk.Poly.create_box(space.static_body, (5, gap_height))
         self.bottom.body.position = x, gap_height // 2
-        self.bottom.thing = self
+        self.bottom.thing = weakref.ref(self)
         self.bottom.elasticity = 1.0
 
         space.add(self.bottom)
@@ -40,7 +43,7 @@ class Sky:
     def __init__(self, space, width, height):
         self.shape = pymunk.Poly.create_box(space.static_body, (width, 10))
         self.shape.body.position = width//2, height
-        self.shape.thing = self
+        self.shape.thing = weakref.ref(self)
         self.shape.elasticity = 1.0
         space.add(self.shape)
 
@@ -57,13 +60,18 @@ class Drone:
         self.shape.body.velocity_func = self.constant_velocity
         self.shape.elasticity = 1.0
         self.shape.friction = 100.0
+        self.shape.filter = pymunk.ShapeFilter(categories=0b1)
         self.shape.thing = self
         self.space = space
+        self.sensor = DepthSensor(self, space)
         space.add(self.body, self.shape)
 
     # Keep ball velocity at a static value
     def constant_velocity(self, body, gravity, damping, dt):
         self.shape.body.velocity = body.velocity.normalized() * 200
+
+    def scan(self):
+        self.sensor.pulse(angle=0, depth=100)
 
     def action(self, action, modifiers):
         if action == 0:
@@ -74,6 +82,44 @@ class Drone:
             self.body.velocity = -200, 0
         elif action == 3:
             self.body.velocity = 200, 0
+
+
+class DepthSensor:
+    def __init__(self, drone, space):
+        self.drone = drone
+        self.space = space
+
+    def clear_pulse(self):
+        for shape in self.space.shapes:
+            if shape.sensor:
+                self.space.remove(shape)
+
+    def pulse(self, angle, depth):
+        origin = self.drone.body.position
+        end = Vec2d(1, 0)
+        end.rotate(angle + self.drone.body.angle)
+        end.length = depth
+        end = end + origin
+
+        segment_query = self.space.segment_query_first(origin, end, 0, pymunk.ShapeFilter(mask=pymunk.ShapeFilter.ALL_MASKS ^ 0b1))
+        if segment_query:
+            contact_point = segment_query.point
+            line = pymunk.Segment(self.space.static_body, origin, contact_point, 1)
+            line.sensor = True
+            line.body.position = 0, 0
+            self.space.add(line)
+        else:
+            line = pymunk.Segment(self.space.static_body, origin, end, 1)
+            line.sensor = True
+            line.body.position = 0, 0
+            self.space.add(line)
+
+        # line = pymunk.Segment(self.space.static_body, origin, end, 1)
+        # line.sensor = True
+        # line.body.position = 0, 0
+        # self.space.add(line)
+
+        Timer(0.2, self.clear_pulse).start()
 
 
 class AlphaRacer2DEnv(gym.Env):
@@ -117,9 +163,9 @@ class AlphaRacer2DEnv(gym.Env):
         drone = None
         gate = None
         for shape in arbiter.shapes:
-            if isinstance(shape.thing, Drone):
+            if hasattr(shape, 'thing') and isinstance(shape.thing, Drone):
                 drone = shape.thing
-            elif isinstance(shape.thing, Gate):
+            elif hasattr(shape, 'thing') and isinstance(shape.thing, Gate):
                 gate = shape.thing
         if drone and gate:
             self.reward = -1.0
@@ -132,7 +178,7 @@ class AlphaRacer2DEnv(gym.Env):
 
     def update(self, dt):
         for shape in self.space.shapes:
-            if isinstance(shape.thing, Drone):
+            if hasattr(shape, 'thing') and isinstance(shape.thing, Drone):
                 if shape.body.position.x < 0 or shape.body.position.x > self.width:
                     self.space.remove(shape.body, shape)
                     self.done = True
@@ -181,6 +227,12 @@ class AlphaRacer2DEnv(gym.Env):
             #self.drone.update(dt)
             self.update(dt)
             self.clock.tick()
+
+        self.drone.scan()
+        dt = self.step_time / self.sim_steps
+        self.space.step(dt)
+        self.update(dt)
+        self.clock.tick()
 
         self.vscreen.fill((0, 0, 0))
         self.space.debug_draw(self.draw_options)
