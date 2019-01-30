@@ -12,3 +12,8 @@ register(
     id='PymunkPong-v0',
     entry_point='gym_duane.envs:PongEnv',
 )
+
+register(
+    id='AlphaRacer2D-v0',
+    entry_point='gym_duane.envs:AlphaRacer2DEnv'
+)

@@ -139,3 +139,18 @@ class Environments(unittest.TestCase):
                     print('nobody won')
         except Exception as e:
             print(e)
+
+    def test_racerloop(self):
+        env = gym.make('AlphaRacer2D-v0')
+
+        for game in range(50):
+            print(f'starting game {game}')
+            obs = env.reset()
+            done = False
+            p1_reward = 0
+            p2_reward = 0
+
+            while not done:
+                actions = env.action_space.sample()
+                observation, reward, done, info = env.step(actions)
+                env.render()

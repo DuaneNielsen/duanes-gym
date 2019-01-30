@@ -76,8 +76,10 @@ class PongEnv(gym.Env):
                     self.done = True
                     if self.last_hit is 'player1':
                         self.reward = (1.0, -1.0)
-                    if self.last_hit is 'player2':
+                    elif self.last_hit is 'player2':
                         self.reward = (-1.0, 1.0)
+                    else:
+                        self.reward = (-1.0, -1.0)
                     self.spawn_puck(dt)
 
     def seed(self, seed=None):
