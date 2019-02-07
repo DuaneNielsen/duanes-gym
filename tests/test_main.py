@@ -156,3 +156,78 @@ class Environments(unittest.TestCase):
                 observation, reward, done, info = env.step(actions)
                 env.render()
                 #p1.render(observation[0], block=False)
+
+    def test_EventQueue(self):
+        from common.events import Event, EventQueue
+        q = EventQueue()
+
+        def hello_callback(arg, kw_arg='yep'):
+            print(f'hello {arg} {kw_arg}' )
+
+        q.add(Event(hello_callback, 'from the ', 'event'))
+
+        for event in q:
+            event.execute()
+
+        class J:
+            def __init__(self):
+                self.j = 0
+
+            def plus_one(self):
+                self.j += 1
+
+            def plus_two(self):
+                self.j += 2
+
+
+        j = J()
+
+        q.add(Event(j.plus_one))
+        q.add(Event(j.plus_one))
+        q.add(Event(j.plus_one))
+
+        for event in q:
+            event.execute()
+
+        assert j.j == 3
+
+        j.j = 0
+
+        q.add(Event(j.plus_two), 5)
+        q.add(Event(j.plus_one), 2)
+        q.add(Event(j.plus_one))
+
+        for event in q:
+            event.execute()
+
+        assert j.j == 1
+
+        q.tick()
+
+        for event in q:
+            event.execute()
+
+        assert j.j == 1
+
+        q.tick()
+
+        for event in q:
+            event.execute()
+
+        assert j.j == 2
+
+        q.tick()
+
+        for event in q:
+            event.execute()
+
+        assert j.j == 2
+
+        q.tick()
+        q.tick()
+
+        for event in q:
+            event.execute()
+
+        assert j.j == 4
+

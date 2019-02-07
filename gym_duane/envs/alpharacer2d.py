@@ -12,6 +12,8 @@ import random
 import math
 from threading import Timer
 import weakref
+from common.events import EventQueue, Event
+
 
 class Gate:
     def __init__(self, space, x, total_height, gap_height, gap_size=50):
@@ -71,7 +73,7 @@ class Drone:
         self.shape.body.velocity = body.velocity.normalized() * 200
 
     def scan(self):
-        self.sensor.pulse(angle=0, depth=100)
+        return self.sensor.pulse(angle=0, depth=100)
 
     def action(self, action, modifiers):
         if action == 0:
@@ -114,13 +116,7 @@ class DepthSensor:
             line.body.position = 0, 0
             self.space.add(line)
 
-        # line = pymunk.Segment(self.space.static_body, origin, end, 1)
-        # line.sensor = True
-        # line.body.position = 0, 0
-        # self.space.add(line)
-
-        Timer(0.2, self.clear_pulse).start()
-
+        return self
 
 class AlphaRacer2DEnv(gym.Env):
     metadata = {
@@ -132,6 +128,8 @@ class AlphaRacer2DEnv(gym.Env):
         self.window = None
         self.width = 1200
         self.height = 600
+
+        self.event_q = EventQueue()
 
         # init framebuffer for observations
         pygame.init()
@@ -213,13 +211,18 @@ class AlphaRacer2DEnv(gym.Env):
 
         self.reward = (0, 0)
         self.done = False
+
+        self.event_q.execute()
+
         self.drone.action(action, modifiers=None)
 
         obs = self.step_simulation()
 
+
         return obs, self.reward, self.done, {}
 
     def step_simulation(self):
+
         # step the simulation
         for t in range(self.sim_steps):
             dt = self.step_time / self.sim_steps
@@ -227,12 +230,16 @@ class AlphaRacer2DEnv(gym.Env):
             #self.drone.update(dt)
             self.update(dt)
             self.clock.tick()
+            self.event_q.tick()
 
-        self.drone.scan()
+        scan = self.drone.scan()
+        self.event_q.add(scan.clear_pulse, 10)
+
         dt = self.step_time / self.sim_steps
         self.space.step(dt)
         self.update(dt)
         self.clock.tick()
+        self.event_q.tick()
 
         self.vscreen.fill((0, 0, 0))
         self.space.debug_draw(self.draw_options)
