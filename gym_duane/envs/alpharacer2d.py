@@ -1,18 +1,13 @@
 import pygame
 import pymunk
-from pymunk import Vec2d, Transform
-from pymunk.pygame_util import DrawOptions, to_pygame
-from math import radians
+from pymunk import Vec2d
+from pymunk.pygame_util import DrawOptions
 import gym
 from gym.utils import seeding
 from gym import spaces
-import numpy as np
-import cv2
 import random
-import math
-from threading import Timer
 import weakref
-from common.events import EventQueue, Event
+from common.events import EventQueue
 from math import degrees
 
 
