@@ -13,6 +13,7 @@ import math
 from threading import Timer
 import weakref
 from common.events import EventQueue, Event
+from math import degrees
 
 
 class Gate:
@@ -51,7 +52,7 @@ class Sky:
 
 
 class Drone:
-    def __init__(self, position, velocity, space):
+    def __init__(self, position, velocity, env):
         self.mass = 1
         self.radius = 10
         self.moment = pymunk.moment_for_circle(self.mass, 0, self.radius, (0, 0))
@@ -64,16 +65,19 @@ class Drone:
         self.shape.friction = 100.0
         self.shape.filter = pymunk.ShapeFilter(categories=0b1)
         self.shape.thing = self
-        self.space = space
-        self.sensor = DepthSensor(self, space)
-        space.add(self.body, self.shape)
+        self.space = env.space
+        self.sensor = DepthSensor(self, env)
+        self.space.add(self.body, self.shape)
 
     # Keep ball velocity at a static value
     def constant_velocity(self, body, gravity, damping, dt):
         self.shape.body.velocity = body.velocity.normalized() * 200
 
     def scan(self):
-        return self.sensor.pulse(angle=0, depth=100)
+        start_angle = degrees(45)
+        arc = degrees(45/5)
+        depth = 400
+        return self.sensor.scan_arc(start_angle, arc, 5, depth)
 
     def action(self, action, modifiers):
         if action == 0:
@@ -87,9 +91,10 @@ class Drone:
 
 
 class DepthSensor:
-    def __init__(self, drone, space):
+    def __init__(self, drone, env):
         self.drone = drone
-        self.space = space
+        self.space = env.space
+        self.env = env
 
     def clear_pulse(self):
         for shape in self.space.shapes:
@@ -97,6 +102,11 @@ class DepthSensor:
                 self.space.remove(shape)
 
     def pulse(self, angle, depth):
+        """
+        Single raycast from drone
+        :param angle: in radians
+        :param depth: max distance sensor can detect
+        """
         origin = self.drone.body.position
         end = Vec2d(1, 0)
         end.rotate(angle + self.drone.body.angle)
@@ -110,13 +120,32 @@ class DepthSensor:
             line.sensor = True
             line.body.position = 0, 0
             self.space.add(line)
+            distance = (origin - contact_point).length
         else:
             line = pymunk.Segment(self.space.static_body, origin, end, 1)
             line.sensor = True
             line.body.position = 0, 0
             self.space.add(line)
+            distance = depth
 
-        return self
+        self.env.event_q.add(self.clear_pulse, 10)
+
+        return distance
+
+    def scan_arc(self, start_angle, arc, rays, depth):
+        """
+        Send a number of rays in an arc pattern from the body center of the drone
+        :param start_angle: first angle to start from (radians)
+        :param arc: increment for subsequent angles
+        :param rays: number of rays
+        :return: an array of distances to objects in the simulation
+        """
+        sensor_output = []
+        for i in range(rays):
+            angle = i * arc + start_angle
+            sensor_output.append(self.pulse(angle=angle, depth=depth))
+        return sensor_output
+
 
 class AlphaRacer2DEnv(gym.Env):
     metadata = {
@@ -134,9 +163,8 @@ class AlphaRacer2DEnv(gym.Env):
         # init framebuffer for observations
         pygame.init()
         self.display = None
-        self.vscreen = pygame.Surface((self.width, self.height))
         self.clock = pygame.time.Clock()
-        self.draw_options = DrawOptions(self.vscreen)
+        self.draw_options = None
 
         self.space = pymunk.Space()
         self.sim_steps = 10  # number of simulation steps per env step
@@ -144,7 +172,7 @@ class AlphaRacer2DEnv(gym.Env):
 
         self.ground = Ground(self.space, self.width)
         self.sky = Sky(self.space, self.width, self.height)
-        self.drone = Drone((self.width / 2, self.height / 2), (-500, 0), self.space)
+        self.drone = Drone((self.width / 2, self.height / 2), (-500, 0), self)
 
         self.first = Gate(x=200, space=self.space, total_height=self.height, gap_height=300)
 
@@ -171,7 +199,7 @@ class AlphaRacer2DEnv(gym.Env):
 
     def spawn_drone(self, dt):
         direction = 1.0 if random.random() < 0.5 else -1.0
-        self.drone = Drone((self.width / 2, self.height / 2), (0, 0), self.space)
+        self.drone = Drone((self.width / 2, self.height / 2), (0, 0), self)
         self.last_hit = None
 
     def update(self, dt):
@@ -213,11 +241,11 @@ class AlphaRacer2DEnv(gym.Env):
         self.done = False
 
         self.event_q.execute()
+        pygame.event.pump()
 
         self.drone.action(action, modifiers=None)
 
         obs = self.step_simulation()
-
 
         return obs, self.reward, self.done, {}
 
@@ -232,20 +260,12 @@ class AlphaRacer2DEnv(gym.Env):
             self.clock.tick()
             self.event_q.tick()
 
-        scan = self.drone.scan()
-        self.event_q.add(scan.clear_pulse, 10)
-
         dt = self.step_time / self.sim_steps
         self.space.step(dt)
+        obs = self.drone.scan()
         self.update(dt)
         self.clock.tick()
         self.event_q.tick()
-
-        self.vscreen.fill((0, 0, 0))
-        self.space.debug_draw(self.draw_options)
-        obs = pygame.surfarray.array3d(self.vscreen)
-        obs = obs.swapaxes(0, 1)
-
         return obs
 
     def reset(self):
@@ -259,7 +279,7 @@ class AlphaRacer2DEnv(gym.Env):
 
         dt = self.step_time / self.sim_steps
         for shape in self.space.shapes:
-            if isinstance(shape.thing, Drone):
+            if hasattr(shape, 'thing') and isinstance(shape.thing, Drone):
                 self.space.remove(shape.body, shape)
                 self.spawn_drone(dt)
                 self.done = False
@@ -269,9 +289,18 @@ class AlphaRacer2DEnv(gym.Env):
         return ob
 
     def render(self, mode='human'):
+        if not self.display:
+            self.display = pygame.display.set_mode((self.width, self.height))
+            pygame.display.set_caption("AlphaRacer")
+            self.draw_options = DrawOptions(self.display)
+
+        self.display.fill((0, 0, 0))
+        self.space.debug_draw(self.draw_options)
+
         if mode is 'human':
-            if not self.display:
-                self.display = pygame.display.set_mode((self.width, self.height))
-                pygame.display.set_caption("AlphaRacer")
-        self.display.blit(self.vscreen, (0, 0))
-        pygame.display.update()
+            pygame.display.flip()
+
+        if mode is 'rgb_array':
+            obs = pygame.surfarray.array3d(self.display)
+            obs = obs.swapaxes(0, 1)
+            return obs
