@@ -5,45 +5,88 @@ from pymunk.pygame_util import DrawOptions
 import gym
 from gym.utils import seeding
 from gym import spaces
-import random
+import numpy as np
 import weakref
 from common.events import EventQueue
-from math import degrees
+from math import radians
 
 
 class Gate:
     def __init__(self, space, x, total_height, gap_height, gap_size=50):
         top_length = total_height - gap_height - gap_size
-        self.top = pymunk.Poly.create_box(space.static_body, (5, top_length))
+        self.top_body = pymunk.Body(0, 0, pymunk.Body.STATIC)
+        self.top = pymunk.Poly.create_box(self.top_body, (5, top_length))
         self.top.body.position = x, (top_length // 2) + gap_height + gap_size
-        self.top.thing = weakref.ref(self)
+        self.top.parent = weakref.ref(self)
         self.top.elasticity = 1.0
-        space.add(self.top)
+        space.add(self.top, self.top_body)
 
-        self.bottom = pymunk.Poly.create_box(space.static_body, (5, gap_height))
+        self.bottom_body = pymunk.Body(0, 0, pymunk.Body.STATIC)
+        self.bottom = pymunk.Poly.create_box(self.bottom_body, (5, gap_height))
         self.bottom.body.position = x, gap_height // 2
-        self.bottom.thing = weakref.ref(self)
+        self.bottom.parent = weakref.ref(self)
         self.bottom.elasticity = 1.0
 
-        space.add(self.bottom)
+        space.add(self.bottom, self.bottom_body)
 
 
 class Ground:
     def __init__(self, space, width):
-        self.shape = pymunk.Poly.create_box(space.static_body, (width, 10))
+        self.body = pymunk.Body(0, 0, pymunk.Body.STATIC)
+        self.shape = pymunk.Poly.create_box(self.body, (width, 10))
         self.shape.body.position = width//2, 0
-        self.shape.thing = self
+        self.shape.parent = weakref.ref(self)
         self.shape.elasticity = 1.0
-        space.add(self.shape)
+        space.add(self.shape, self.body)
 
 
 class Sky:
     def __init__(self, space, width, height):
-        self.shape = pymunk.Poly.create_box(space.static_body, (width, 10))
+        self.body = pymunk.Body(0, 0, pymunk.Body.STATIC)
+        self.shape = pymunk.Poly.create_box(self.body, (width, 10))
         self.shape.body.position = width//2, height
-        self.shape.thing = weakref.ref(self)
+        self.shape.parent = weakref.ref(self)
         self.shape.elasticity = 1.0
-        space.add(self.shape)
+        space.add(self.shape, self.body)
+
+
+class FinishLine:
+    def __init__(self, space, width, height):
+        self.body = pymunk.Body(0, 0, pymunk.Body.STATIC)
+        self.shape = pymunk.Poly.create_box(self.body, (20, height))
+        self.shape.body.position = width - 20, height // 2
+        self.shape.parent = weakref.ref(self)
+        self.shape.sensor = True
+        self.space = space
+        space.add(self.shape, self.body)
+
+    def drone_enters(self):
+        query_info = self.space.shape_query(self.shape)
+        for object in query_info:
+            if hasattr(object.shape, 'parent') and isinstance(object.shape.parent(), Drone):
+                    return True
+        else:
+            return False
+
+
+class DeathWall:
+    def __init__(self, space, width, height, velocity):
+        self.body = pymunk.Body(0, 0, pymunk.Body.KINEMATIC)
+        self.shape = pymunk.Poly.create_box(self.body, (20, height - 20))
+        self.shape.body.position = 0, height // 2
+        self.shape.body.velocity = velocity
+        self.shape.parent = weakref.ref(self)
+        self.shape.sensor = False
+        self.space = space
+        space.add(self.shape, self.body)
+
+    def drone_enters(self):
+        query_info = self.space.shape_query(self.shape)
+        for object in query_info:
+            if hasattr(object.shape, 'parent') and isinstance(object.shape.parent(), Drone):
+                    return True
+        else:
+            return False
 
 
 class Drone:
@@ -59,7 +102,7 @@ class Drone:
         self.shape.elasticity = 1.0
         self.shape.friction = 100.0
         self.shape.filter = pymunk.ShapeFilter(categories=0b1)
-        self.shape.thing = self
+        self.shape.parent = weakref.ref(self)
         self.space = env.space
         self.sensor = DepthSensor(self, env)
         self.space.add(self.body, self.shape)
@@ -69,8 +112,8 @@ class Drone:
         self.shape.body.velocity = body.velocity.normalized() * 200
 
     def scan(self):
-        start_angle = degrees(45)
-        arc = degrees(45/5)
+        start_angle = radians(45)
+        arc = radians(90)/4
         depth = 400
         return self.sensor.scan_arc(start_angle, arc, 5, depth)
 
@@ -96,11 +139,12 @@ class DepthSensor:
             if shape.sensor:
                 self.space.remove(shape)
 
-    def pulse(self, angle, depth):
+    def pulse(self, angle, depth, ticks=5):
         """
         Single raycast from drone
         :param angle: in radians
         :param depth: max distance sensor can detect
+        :param ticks: number of ticks before deleting the ray
         """
         origin = self.drone.body.position
         end = Vec2d(1, 0)
@@ -123,13 +167,15 @@ class DepthSensor:
             self.space.add(line)
             distance = depth
 
-        self.env.event_q.add(self.clear_pulse, 10)
+        self.env.event_q.add(self.clear_pulse, ticks)
 
         return distance
 
     def scan_arc(self, start_angle, arc, rays, depth):
         """
         Send a number of rays in an arc pattern from the body center of the drone
+        start_angle is the first arc, subsequent rays are sent out at increments
+        of arc in the clockwise direction
         :param start_angle: first angle to start from (radians)
         :param arc: increment for subsequent angles
         :param rays: number of rays
@@ -137,7 +183,7 @@ class DepthSensor:
         """
         sensor_output = []
         for i in range(rays):
-            angle = i * arc + start_angle
+            angle = start_angle - i * arc
             sensor_output.append(self.pulse(angle=angle, depth=depth))
         return sensor_output
 
@@ -150,8 +196,8 @@ class AlphaRacer2DEnv(gym.Env):
 
     def __init__(self):
         self.window = None
-        self.width = 1200
-        self.height = 600
+        self.width = 400
+        self.height = 200
 
         self.event_q = EventQueue()
 
@@ -169,7 +215,9 @@ class AlphaRacer2DEnv(gym.Env):
         self.sky = Sky(self.space, self.width, self.height)
         self.drone = Drone((self.width / 2, self.height / 2), (-500, 0), self)
 
-        self.first = Gate(x=200, space=self.space, total_height=self.height, gap_height=300)
+        self.first = Gate(x=300, space=self.space, total_height=self.height, gap_height=100)
+        self.finishline = FinishLine(self.space, self.width, self.height)
+        self.deathwall = DeathWall(self.space, self.width, self.height, (10, 0))
 
         self.done = False
         self.reward = 0
@@ -183,28 +231,40 @@ class AlphaRacer2DEnv(gym.Env):
     def coll_begin(self, arbiter, space, data):
         drone = None
         gate = None
+        ground = None
         for shape in arbiter.shapes:
-            if hasattr(shape, 'thing') and isinstance(shape.thing, Drone):
-                drone = shape.thing
-            elif hasattr(shape, 'thing') and isinstance(shape.thing, Gate):
-                gate = shape.thing
-        if drone and gate:
+            if hasattr(shape, 'parent'):
+                #print(f'{type(shape.parent())}')
+                if isinstance(shape.parent(), Drone):
+                    drone = shape.parent
+                elif isinstance(shape.parent(), Gate):
+                    gate = shape.parent
+                elif isinstance(shape.parent(), Ground):
+                    ground = shape.parent
+        if drone and (gate or ground):
             self.reward = -1.0
         return True
 
     def spawn_drone(self, dt):
-        direction = 1.0 if random.random() < 0.5 else -1.0
+        if self.drone:
+            self.space.remove(self.drone.body, self.drone.shape)
         self.drone = Drone((self.width / 2, self.height / 2), (0, 0), self)
-        self.last_hit = None
+        if self.deathwall:
+            self.space.remove(self.deathwall.body, self.deathwall.shape)
+        self.deathwall = DeathWall(self.space, self.width, self.height, (10, 0))
 
     def update(self, dt):
-        for shape in self.space.shapes:
-            if hasattr(shape, 'thing') and isinstance(shape.thing, Drone):
-                if shape.body.position.x < 0 or shape.body.position.x > self.width:
-                    self.space.remove(shape.body, shape)
-                    self.done = True
-                    self.reward = 1.0 if shape.body.position.x < 0 else -1.0
-                    self.spawn_drone(dt)
+        self.space.step(dt)
+        if self.finishline.drone_enters():
+            self.done = True
+            self.reward = 100
+            self.spawn_drone(dt)
+        if self.deathwall.drone_enters():
+            self.done = True
+            self.reward = -100
+            self.spawn_drone(dt)
+        self.clock.tick()
+        self.event_q.tick()
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -232,7 +292,7 @@ class AlphaRacer2DEnv(gym.Env):
                  empty at the moment
         """
 
-        self.reward = (0, 0)
+        self.reward = 0
         self.done = False
 
         self.event_q.execute()
@@ -241,26 +301,22 @@ class AlphaRacer2DEnv(gym.Env):
         self.drone.action(action, modifiers=None)
 
         obs = self.step_simulation()
+        pos = list(self.drone.shape.body.position)
+        obs = obs + pos
 
-        return obs, self.reward, self.done, {}
+        return np.array(obs), self.reward, self.done, {}
 
     def step_simulation(self):
 
         # step the simulation
         for t in range(self.sim_steps):
             dt = self.step_time / self.sim_steps
-            self.space.step(dt)
-            #self.drone.update(dt)
             self.update(dt)
-            self.clock.tick()
-            self.event_q.tick()
 
         dt = self.step_time / self.sim_steps
-        self.space.step(dt)
-        obs = self.drone.scan()
         self.update(dt)
-        self.clock.tick()
-        self.event_q.tick()
+
+        obs = self.drone.scan()
         return obs
 
     def reset(self):
@@ -274,8 +330,7 @@ class AlphaRacer2DEnv(gym.Env):
 
         dt = self.step_time / self.sim_steps
         for shape in self.space.shapes:
-            if hasattr(shape, 'thing') and isinstance(shape.thing, Drone):
-                self.space.remove(shape.body, shape)
+            if hasattr(shape, 'parent') and isinstance(shape.parent, Drone):
                 self.spawn_drone(dt)
                 self.done = False
 
@@ -293,7 +348,7 @@ class AlphaRacer2DEnv(gym.Env):
         self.space.debug_draw(self.draw_options)
 
         if mode is 'human':
-            pygame.display.flip()
+            pygame.display.update()
 
         if mode is 'rgb_array':
             obs = pygame.surfarray.array3d(self.display)

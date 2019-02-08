@@ -8,5 +8,6 @@ setup(name='gym_duane',
                         'cfg_load',
                         'pymunk',
                         'pygame',
-                        'opencv-python']
+                        'opencv-python',
+                        'numpy']
       )

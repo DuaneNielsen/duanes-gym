@@ -145,17 +145,19 @@ class Environments(unittest.TestCase):
         p1 = UniImageViewer('player1')
 
         for game in range(50):
-            print(f'starting game {game}')
             obs = env.reset()
             done = False
-            p1_reward = 0
-            p2_reward = 0
+            total_reward = 0
 
             while not done:
                 actions = env.action_space.sample()
                 observation, reward, done, info = env.step(actions)
                 env.render()
-                #p1.render(observation[0], block=False)
+                time.sleep(0.05)
+                total_reward += reward
+                print(observation)
+
+            print(f'game {game} ended with reward {total_reward}')
 
     def test_EventQueue(self):
         from common.events import Event, EventQueue
