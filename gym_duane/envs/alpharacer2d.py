@@ -292,7 +292,7 @@ class AlphaRacer2DEnv(gym.Env):
                  empty at the moment
         """
 
-        self.reward = 0
+        self.reward = -0.01
         self.done = False
 
         self.event_q.execute()

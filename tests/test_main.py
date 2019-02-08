@@ -155,7 +155,7 @@ class Environments(unittest.TestCase):
                 env.render()
                 time.sleep(0.05)
                 total_reward += reward
-                print(observation)
+                #print(observation)
 
             print(f'game {game} ended with reward {total_reward}')
 
