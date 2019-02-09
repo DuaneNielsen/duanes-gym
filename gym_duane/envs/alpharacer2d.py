@@ -7,7 +7,7 @@ from gym.utils import seeding
 from gym import spaces
 import numpy as np
 import weakref
-from common.events import EventQueue
+from .events import EventQueue
 from math import radians
 
 
@@ -21,6 +21,14 @@ class Gate:
         self.top.elasticity = 1.0
         space.add(self.top, self.top_body)
 
+        self.opening_body = pymunk.Body(0, 0, pymunk.Body.STATIC)
+        self.opening = pymunk.Poly.create_box(self.opening_body, (5, gap_size))
+        self.opening.body.position = x, gap_height + (gap_size//2)
+        self.opening.parent = weakref.ref(self)
+        self.opening.sensor = True
+        self.opening.elasticity = 1.0
+        space.add(self.opening, self.opening_body)
+
         self.bottom_body = pymunk.Body(0, 0, pymunk.Body.STATIC)
         self.bottom = pymunk.Poly.create_box(self.bottom_body, (5, gap_height))
         self.bottom.body.position = x, gap_height // 2
@@ -28,6 +36,19 @@ class Gate:
         self.bottom.elasticity = 1.0
 
         space.add(self.bottom, self.bottom_body)
+
+        self.space = space
+        self.contacted = False
+
+    def gate_contacted(self):
+        """Returns true the first time this gate opening makes contact with the drone"""
+        if not self.contacted:
+            query_info = self.space.shape_query(self.opening)
+            for object in query_info:
+                if hasattr(object.shape, 'parent') and isinstance(object.shape.parent(), Drone):
+                    self.contacted = True
+                    return True
+        return False
 
 
 class Ground:
@@ -185,6 +206,7 @@ class DepthSensor:
         for i in range(rays):
             angle = start_angle - i * arc
             sensor_output.append(self.pulse(angle=angle, depth=depth))
+        sensor_output = np.array(sensor_output) / depth
         return sensor_output
 
 
@@ -196,8 +218,8 @@ class AlphaRacer2DEnv(gym.Env):
 
     def __init__(self):
         self.window = None
-        self.width = 400
-        self.height = 200
+        self.width = 1200
+        self.height = 400
 
         self.event_q = EventQueue()
 
@@ -213,9 +235,13 @@ class AlphaRacer2DEnv(gym.Env):
 
         self.ground = Ground(self.space, self.width)
         self.sky = Sky(self.space, self.width, self.height)
-        self.drone = Drone((self.width / 2, self.height / 2), (-500, 0), self)
+        self.drone = Drone((50, self.height / 2), (-500, 0), self)
 
-        self.first = Gate(x=300, space=self.space, total_height=self.height, gap_height=100)
+        self.gates = []
+        self.gates.append(Gate(x=300, space=self.space, total_height=self.height, gap_height=50))
+        self.gates.append(Gate(x=700, space=self.space, total_height=self.height, gap_height=300))
+        self.gates.append(Gate(x=1100, space=self.space, total_height=self.height, gap_height=50))
+
         self.finishline = FinishLine(self.space, self.width, self.height)
         self.deathwall = DeathWall(self.space, self.width, self.height, (10, 0))
 
@@ -234,7 +260,6 @@ class AlphaRacer2DEnv(gym.Env):
         ground = None
         for shape in arbiter.shapes:
             if hasattr(shape, 'parent'):
-                #print(f'{type(shape.parent())}')
                 if isinstance(shape.parent(), Drone):
                     drone = shape.parent
                 elif isinstance(shape.parent(), Gate):
@@ -242,13 +267,13 @@ class AlphaRacer2DEnv(gym.Env):
                 elif isinstance(shape.parent(), Ground):
                     ground = shape.parent
         if drone and (gate or ground):
-            self.reward = -1.0
+            self.reward += -1.0
         return True
 
     def spawn_drone(self, dt):
         if self.drone:
             self.space.remove(self.drone.body, self.drone.shape)
-        self.drone = Drone((self.width / 2, self.height / 2), (0, 0), self)
+        self.drone = Drone((50, self.height / 2), (0, 0), self)
         if self.deathwall:
             self.space.remove(self.deathwall.body, self.deathwall.shape)
         self.deathwall = DeathWall(self.space, self.width, self.height, (10, 0))
@@ -257,12 +282,15 @@ class AlphaRacer2DEnv(gym.Env):
         self.space.step(dt)
         if self.finishline.drone_enters():
             self.done = True
-            self.reward = 100
+            self.reward += 100
             self.spawn_drone(dt)
         if self.deathwall.drone_enters():
             self.done = True
-            self.reward = -100
+            self.reward += -100
             self.spawn_drone(dt)
+        for gate in self.gates:
+            if gate.gate_contacted():
+                self.reward += 100
         self.clock.tick()
         self.event_q.tick()
 
@@ -292,7 +320,7 @@ class AlphaRacer2DEnv(gym.Env):
                  empty at the moment
         """
 
-        self.reward = -0.01
+        self.reward = 0
         self.done = False
 
         self.event_q.execute()
@@ -301,10 +329,8 @@ class AlphaRacer2DEnv(gym.Env):
         self.drone.action(action, modifiers=None)
 
         obs = self.step_simulation()
-        pos = list(self.drone.shape.body.position)
-        obs = obs + pos
 
-        return np.array(obs), self.reward, self.done, {}
+        return obs, self.reward, self.done, {}
 
     def step_simulation(self):
 
@@ -316,7 +342,11 @@ class AlphaRacer2DEnv(gym.Env):
         dt = self.step_time / self.sim_steps
         self.update(dt)
 
-        obs = self.drone.scan()
+        sensors = self.drone.scan()
+        x = self.drone.shape.body.position.x / self.width
+        y = self.drone.shape.body.position.y / self.height
+        obs = np.concatenate((sensors, np.array([x, y])))
+
         return obs
 
     def reset(self):
@@ -334,9 +364,9 @@ class AlphaRacer2DEnv(gym.Env):
                 self.spawn_drone(dt)
                 self.done = False
 
-        ob = self.step_simulation()
+        obs = self.step_simulation()
 
-        return ob
+        return obs
 
     def render(self, mode='human'):
         if not self.display:

@@ -155,12 +155,12 @@ class Environments(unittest.TestCase):
                 env.render()
                 time.sleep(0.05)
                 total_reward += reward
-                #print(observation)
+                print(reward)
 
             print(f'game {game} ended with reward {total_reward}')
 
     def test_EventQueue(self):
-        from common.events import Event, EventQueue
+        from envs.events import Event, EventQueue
         q = EventQueue()
 
         def hello_callback(arg, kw_arg='yep'):
