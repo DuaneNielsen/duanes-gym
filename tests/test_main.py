@@ -164,7 +164,7 @@ class Environments(unittest.TestCase):
         q = EventQueue()
 
         def hello_callback(arg, kw_arg='yep'):
-            print(f'hello {arg} {kw_arg}' )
+            print(f'hello {arg} {kw_arg}')
 
         q.add(Event(hello_callback, 'from the ', 'event'))
 
@@ -180,7 +180,6 @@ class Environments(unittest.TestCase):
 
             def plus_two(self):
                 self.j += 2
-
 
         j = J()
 
@@ -233,3 +232,33 @@ class Environments(unittest.TestCase):
 
         assert j.j == 4
 
+    def test_Grid_vectors(self):
+        import envs.gridworld as gw
+        from envs.gridworld import Vec, Pos, direction
+
+        assert Pos(0, 0) + direction['N'] == Pos(0, 1)
+        assert Pos([0, 0, 0, 0], [0, 0, 0, 0]) + Vec('NNNN') == Pos([0, 0, 0, 0], [1, 1, 1, 1])
+        assert Pos([0, 0, 0, 0], [0, 0, 0, 0]) + Vec('NNNN') != Pos([0, 0, 0, 0], [0, 1, 1, 1])
+        assert Pos([(0, 0)]) + Vec([(0, 1)]) == Pos([(0, 1)])
+        assert Pos([(0, 0)]) + Vec([(1, 1)]) != Pos([(0, 1)])
+        assert Pos([(0, 0), (0, 0)]) + Vec([(1, 1), (1, 1)]) == Pos([(1, 1), (1, 1)])
+        assert Pos([(0, 0), (0, 0)]) + Vec([(1, 1), (1, 1)]) != Pos([(1, 0), (1, 1)])
+        assert Pos([(0, 0), (0, 0), (0, 0), (0, 0)]) + Vec('NESW') == Pos([(0, 1), (1, 0), (0, -1), (-1, 0)])
+
+    def test_bouncer(self):
+        import envs.bouncing as b
+        env = gym.make('Bouncer-v0')
+
+        for episode in range(5):
+            done = False
+
+        # power = 100.0
+        # angle = 1.0
+        # action = np.array([power, angle])
+
+            action = 1
+            while not done:
+                observation, reward, done, info = env.step(episode)
+                print(observation)
+                env.render()
+                time.sleep(0.1)

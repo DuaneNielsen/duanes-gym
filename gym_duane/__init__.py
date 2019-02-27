@@ -17,3 +17,8 @@ register(
     id='AlphaRacer2D-v0',
     entry_point='gym_duane.envs:AlphaRacer2DEnv'
 )
+
+register(
+    id='Bouncer-v0',
+    entry_point='gym_duane.envs:BounceEnv'
+)
