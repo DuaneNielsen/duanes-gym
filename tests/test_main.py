@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # core modules
-import unittest
+import unittest2
 
 # 3rd party modules
 import gym
@@ -95,7 +95,7 @@ class UniImageViewer:
         self.render(image)
 
 
-class Environments(unittest.TestCase):
+class Environments(unittest2.TestCase):
 
     def test_bannana(self):
         env = gym.make('Banana-v0')

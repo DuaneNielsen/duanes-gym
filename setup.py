@@ -9,5 +9,11 @@ setup(name='gym_duane',
                         'pymunk',
                         'pygame',
                         'opencv-python',
-                        'numpy']
+                        'numpy'],
+      extras_require={
+          'dev': [
+              'pytest',
+              'tox'
+          ]
+      }
       )
