@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 # core modules
-import unittest2
 
 # 3rd party modules
 import gym
