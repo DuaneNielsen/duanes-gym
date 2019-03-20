@@ -13,7 +13,8 @@ setup(name='gym_duane',
       extras_require={
           'dev': [
               'pytest',
-              'tox'
+              'tox',
+              'unittest2'
           ]
       }
       )
