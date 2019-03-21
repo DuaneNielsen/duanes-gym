@@ -9,27 +9,38 @@ a few simulations.
 
 ## Installation
 
-Install the [OpenAI gym](https://gym.openai.com/docs/).
-
-Then install this package via
+Install this package from Pypi
 
 ```
+pip install gym-duane
+```
+
+Or if from source, then
+
+```
+git clone https://github.com/DuaneNielsen/duanes-gym.git
+cd duanes-gym
 pip install -e .
+
 ```
 
-## Usage
+## The Environments
+
+AlphaRacer2D-v0 - 2D drone simulation
 
 ```
 import gym
 import gym_duane
 
-env = gym.make('AlphaRacer-v0')
+env = gym.make('AlphaRacer2D-v0')
 ```
 
 
-## The Environments
-
-- an adversarial Pong simulator
-
-AlphaRacer2D-v0 - 2D drone simulation
 PymunkPong-v0 - Adversarial Pong simulator
+
+```
+import gym
+import gym_duane
+
+env = gym.make('PymunkPong-v0')
+```
