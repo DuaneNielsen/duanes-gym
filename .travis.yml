@@ -1,6 +1,5 @@
 dist: xenial
 language: python
-skip_cleanup: true
 python:
 - '3.6'
 install:
@@ -9,6 +8,7 @@ install:
 script:
 - pytest
 deploy:
+  skip_cleanup: true
   provider: pypi
   user: duanenielsen
   password:
