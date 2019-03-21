@@ -246,19 +246,6 @@ def test_EventQueue():
     assert j.j == 4
 
 
-def test_Grid_vectors():
-    from gym_duane.envs.gridworld import Vec, Pos, direction
-
-    assert Pos(0, 0) + direction['N'] == Pos(0, 1)
-    assert Pos([0, 0, 0, 0], [0, 0, 0, 0]) + Vec('NNNN') == Pos([0, 0, 0, 0], [1, 1, 1, 1])
-    assert Pos([0, 0, 0, 0], [0, 0, 0, 0]) + Vec('NNNN') != Pos([0, 0, 0, 0], [0, 1, 1, 1])
-    assert Pos([(0, 0)]) + Vec([(0, 1)]) == Pos([(0, 1)])
-    assert Pos([(0, 0)]) + Vec([(1, 1)]) != Pos([(0, 1)])
-    assert Pos([(0, 0), (0, 0)]) + Vec([(1, 1), (1, 1)]) == Pos([(1, 1), (1, 1)])
-    assert Pos([(0, 0), (0, 0)]) + Vec([(1, 1), (1, 1)]) != Pos([(1, 0), (1, 1)])
-    assert Pos([(0, 0), (0, 0), (0, 0), (0, 0)]) + Vec('NESW') == Pos([(0, 1), (1, 0), (0, -1), (-1, 0)])
-
-
 def test_bouncer(render):
     env = gym.make('Bouncer-v0')
 
