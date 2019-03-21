@@ -10,20 +10,12 @@ Each episode is selling a single banana.
 # core modules
 import logging.config
 import math
-import pkg_resources
 import random
 
 # 3rd party modules
 from gym import spaces
-import cfg_load
 import gym
 import numpy as np
-
-
-path = 'config.yaml'  # always use slash in packages
-filepath = pkg_resources.resource_filename('gym_duane', path)
-config = cfg_load.load(filepath)
-logging.config.dictConfig(config['LOGGING'])
 
 
 def get_chance(x):
@@ -154,4 +146,4 @@ class BananaEnv(gym.Env):
 
     def seed(self, seed):
         random.seed(seed)
-        np.random.seed
+        np.random.seed(seed)
