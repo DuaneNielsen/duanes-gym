@@ -324,7 +324,8 @@ class AlphaRacer2DEnv(gym.Env):
         self.done = False
 
         self.event_q.execute()
-        pygame.event.pump()
+        if self.display:
+            pygame.event.pump()
 
         self.drone.action(action, modifiers=None)
 
