@@ -22,3 +22,13 @@ register(
     id='Bouncer-v0',
     entry_point='gym_duane.envs:BounceEnv'
 )
+
+register(
+    id='SimpleGrid-v0',
+    entry_point='gym_duane.envs:SimpleGrid'
+)
+
+register(
+    id='SimpleGrid-v2',
+    entry_point='gym_duane.envs:SimpleGridV2'
+)
