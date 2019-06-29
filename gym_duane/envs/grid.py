@@ -158,15 +158,21 @@ class SimpleGridV2(gym.Env):
             self.update_map()
             return self.map.to(dtype=torch.float32)
 
+    def reset_done(self):
+        index = torch.masked_select(torch.arange(self.terminated.size(0)), self.terminated.to(dtype=torch.uint8))
+        self.position_x[index] = self.start_x
+        self.position_y[index] = self.start_y
+        self.terminated.zero_()
+
     def step(self, actions):
         with torch.no_grad():
             actions = one_hot(actions, 4)
             actions = actions.matmul(self.t)
-            actions = actions * (1 - self.terminated).unsqueeze(1).expand(-1, 2)
             self.position_x += actions[:, 0]
             self.position_y += actions[:, 1]
             self.position_x.clamp_(0, self.width - 1)
             self.position_y.clamp_(0, self.height - 1)
+            self.reset_done()
             self.update_map()
             reward = self.rewards.unsqueeze(0).expand(10, -1, -1).flatten()[self.position_index()]
             self.terminated = torch.sum(self.map & self.terminal, dim=(1, 2))
