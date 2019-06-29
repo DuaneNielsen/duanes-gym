@@ -32,7 +32,7 @@ def test_line_grid():
 
 
 def test_simple_grid_v2():
-    env = gym.make('SimpleGrid-v2', n=10, map_string="""
+    env = gym.make('SimpleGrid-v2', n=3, map_string="""
     [
     [E, E, E, E, E],
     [E, E, E, E, E],
@@ -43,12 +43,180 @@ def test_simple_grid_v2():
 
     obs = env.reset()
 
-    for i in range(10000):
-        action = torch.LongTensor(10, 2).random_(-1, 2)
-        print(action)
+    init = torch.tensor(
+        [
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0]
+        ]
+    )
+
+    init = init.repeat(3, 1, 1)
+    assert torch.allclose(init, obs)
+
+    action = torch.LongTensor([1, 1, 1])
+    obs, reward, done = env.step(action)
+
+    step1 = torch.tensor(
+        [
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0]
+        ]
+    )
+
+    step1 = step1.repeat(3, 1, 1)
+    assert torch.allclose(step1, obs)
+
+    action = torch.LongTensor([1, 1, 1])
+    obs, reward, done = env.step(action)
+    action = torch.LongTensor([3, 3, 3])
+    obs, reward, done = env.step(action)
+
+    step2 = torch.tensor(
+        [
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 1.0]
+        ]
+    )
+
+    step2 = step2.repeat(3, 1, 1)
+    assert torch.allclose(step2, obs)
+    assert torch.allclose(reward, torch.tensor([1.0, 1.0, 1.0]))
+    assert torch.allclose(done, torch.ByteTensor([1, 1, 1]))
+
+
+    obs = env.reset()
+
+    init = torch.tensor(
+        [
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0]
+        ]
+    )
+
+    init = init.repeat(3, 1, 1)
+    assert torch.allclose(init, obs)
+
+    action = torch.LongTensor([0, 0, 0])
+    obs, reward, done = env.step(action)
+
+    step1 = torch.tensor(
+        [
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0]
+        ]
+    )
+    assert torch.allclose(step1, obs)
+    assert torch.allclose(reward, torch.tensor([0.0, 0.0, 0.0]))
+    assert torch.allclose(done, torch.ByteTensor([0, 0, 0]))
+
+
+    #assert torch.allclose(env.terminated, torch.ByteTensor([0, 0, 0]))
+
+
+    for i in range(100):
+        action = torch.LongTensor(3).random_(0, 3)
         obs, reward, done = env.step(action)
-        print(reward, done)
-        print(obs)
+
+
+def test_simple_grid_line():
+        env = gym.make('SimpleGrid-v2', n=3, map_string="""
+        [
+        [S, E, E, T]
+        ]
+        """)
+
+        obs = env.reset()
+
+        init = torch.tensor(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+            ]
+        )
+
+        init = init.repeat(3, 1, 1)
+        assert torch.allclose(init, obs)
+
+        action = torch.LongTensor([0, 0, 0])
+        obs, reward, done = env.step(action)
+
+        expected = torch.tensor(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+            ]
+        )
+
+        init = init.repeat(3, 1, 1)
+        assert torch.allclose(expected, obs)
+
+        action = torch.LongTensor([2, 2, 2])
+        obs, reward, done = env.step(action)
+
+        expected = torch.tensor(
+            [
+                [1.0, 0.0, 0.0, 0.0],
+            ]
+        )
+
+        init = init.repeat(3, 1, 1)
+        assert torch.allclose(expected, obs)
+
+        action = torch.LongTensor([1, 1, 1])
+        obs, reward, done = env.step(action)
+
+        expected = torch.tensor(
+            [
+                [0.0, 1.0, 0.0, 0.0],
+            ]
+        )
+
+        init = init.repeat(3, 1, 1)
+        assert torch.allclose(expected, obs)
+
+        action = torch.LongTensor([1, 1, 1])
+        obs, reward, done = env.step(action)
+
+        expected = torch.tensor(
+            [
+                [0.0, 0.0, 1.0, 0.0],
+            ]
+        )
+
+        init = init.repeat(3, 1, 1)
+        assert torch.allclose(expected, obs)
+
+        action = torch.LongTensor([1, 1, 1])
+        obs, reward, done = env.step(action)
+
+        expected = torch.tensor(
+            [
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        )
+
+        init = init.repeat(3, 1, 1)
+        assert torch.allclose(expected, obs)
+
+        action = torch.LongTensor([0, 0, 0])
+        obs, reward, done = env.step(action)
+
+        expected = torch.tensor(
+            [
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        )
+
+        init = init.repeat(3, 1, 1)
+        assert torch.allclose(expected, obs)
 
 
 def test_parse():

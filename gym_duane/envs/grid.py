@@ -2,6 +2,7 @@ import torch
 import gym
 import logging
 from lark import Lark
+from torch.nn.functional import one_hot
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,7 @@ class SimpleGrid(gym.Env):
 
     def step(self, actions):
         with torch.no_grad():
+            torch
             actions = actions.to(dtype=torch.long)
             actions = actions * (1 - self.terminated)
             self.position += actions
@@ -82,7 +84,6 @@ class SimpleGrid(gym.Env):
 class SimpleGridV2(gym.Env):
     def __init__(self, n, map_string):
         super().__init__()
-
         l = Lark(
             '''
             start: "[" row ("," row )* "]"
@@ -100,13 +101,18 @@ class SimpleGridV2(gym.Env):
         height = len(tree.children)
         width = len(tree.children[0].children)
 
+        if height > 1 and width > 1:
+            self.action_space = gym.spaces.Discrete(4)
+        else:
+            self.action_space = gym.spaces.Discrete(2)
+
         with torch.no_grad():
             self.map = torch.zeros(n, height, width, dtype=torch.long, requires_grad=False)
-            self.position_x = torch.zeros(n, dtype=torch.long, requires_grad=False)
             self.position_y = torch.zeros(n, dtype=torch.long, requires_grad=False)
+            self.position_x = torch.zeros(n, dtype=torch.long, requires_grad=False)
             self.terminated = torch.zeros(n, dtype=torch.long, requires_grad=False)
             self.terminal = torch.zeros(height, width, dtype=torch.long, requires_grad=False)
-            self.rewards = torch.zeros(height, width, dtype=torch.long, requires_grad=False)
+            self.rewards = torch.zeros(height, width, dtype=torch.float32, requires_grad=False)
             self.range = torch.arange(n)
             self.height = height
             self.width = width
@@ -128,14 +134,19 @@ class SimpleGridV2(gym.Env):
                         self.start_x = torch.tensor([i])
                         self.start_y = torch.tensor([j])
 
-            self.position_x = self.start_x.repeat(self.n)
-            self.position_y = self.start_y.repeat(self.n)
+            self.position_y = self.start_x.repeat(self.n)
+            self.position_x = self.start_y.repeat(self.n)
+            self.t = torch.tensor([[-1, 0],
+                                   [1, 0],
+                                   [0, -1],
+                                   [0, 1]
+                                   ], requires_grad=False)
 
     def position_index(self):
         # compute and write the position
         with torch.no_grad():
             base = torch.arange(self.n) * self.height * self.width
-            offset = self.position_x * self.width + self.position_y
+            offset = self.position_y * self.width + self.position_x
             index = base + offset
             return index
 
@@ -145,22 +156,25 @@ class SimpleGridV2(gym.Env):
 
     def reset(self):
         with torch.no_grad():
-            self.position_x = self.start_x.repeat(self.n)
-            self.position_y = self.start_y.repeat(self.n)
+            self.position_y = self.start_x.repeat(self.n)
+            self.position_x = self.start_y.repeat(self.n)
             self.terminated.zero_()
+            self.update_map()
+            return self.map.to(dtype=torch.float32)
 
     def step(self, actions):
         with torch.no_grad():
-            actions = actions.to(dtype=torch.long)
+            actions = one_hot(actions, 4)
+            actions = actions.matmul(self.t)
             actions = actions * (1 - self.terminated).unsqueeze(1).expand(-1, 2)
             self.position_x += actions[:, 0]
             self.position_y += actions[:, 1]
-            self.position_x.clamp_(0, self.height - 1)
-            self.position_y.clamp_(0, self.width - 1)
+            self.position_x.clamp_(0, self.width - 1)
+            self.position_y.clamp_(0, self.height - 1)
             self.update_map()
             reward = self.rewards.unsqueeze(0).expand(10, -1, -1).flatten()[self.position_index()]
-            self.terminated = torch.sum(self.map & self.terminal, dim=(1,2))
-            return self.map, reward, self.terminated
+            self.terminated = torch.sum(self.map & self.terminal, dim=(1, 2))
+            return self.map.to(dtype=torch.float32), reward, self.terminated.to(dtype=torch.uint8)
 
     def render(self, mode='human'):
         print(f'{self.map.data}')
