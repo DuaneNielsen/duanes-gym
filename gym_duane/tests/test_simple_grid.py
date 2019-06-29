@@ -13,7 +13,7 @@ def test_simple_grid():
     for i in range(10):
         action = torch.LongTensor(10).random_(-1, 2)
         print(action)
-        obs, reward, done = env.step(action)
+        obs, reward, done, info = env.step(action)
         print(reward, done)
         env.render()
 
@@ -26,7 +26,7 @@ def test_line_grid():
     for i in range(200):
         action = torch.LongTensor(10).random_(-1, 2)
         print(action)
-        obs, reward, done = env.step(action)
+        obs, reward, done, info = env.step(action)
         print(reward, done)
         env.render()
 
@@ -56,7 +56,7 @@ def test_simple_grid_v2():
     assert torch.allclose(init, obs)
 
     action = torch.LongTensor([1, 1, 1])
-    obs, reward, done = env.step(action)
+    obs, reward, done, info = env.step(action)
 
     step1 = torch.tensor(
         [
@@ -71,9 +71,9 @@ def test_simple_grid_v2():
     assert torch.allclose(step1, obs)
 
     action = torch.LongTensor([1, 1, 1])
-    obs, reward, done = env.step(action)
+    obs, reward, done, info = env.step(action)
     action = torch.LongTensor([3, 3, 3])
-    obs, reward, done = env.step(action)
+    obs, reward, done, info = env.step(action)
 
     step2 = torch.tensor(
         [
@@ -105,7 +105,7 @@ def test_simple_grid_v2():
     assert torch.allclose(init, obs)
 
     action = torch.LongTensor([0, 0, 0])
-    obs, reward, done = env.step(action)
+    obs, reward, done, info = env.step(action)
 
     step1 = torch.tensor(
         [
@@ -125,7 +125,7 @@ def test_simple_grid_v2():
 
     for i in range(100):
         action = torch.LongTensor(3).random_(0, 3)
-        obs, reward, done = env.step(action)
+        obs, reward, done, info = env.step(action)
 
 
 def test_simple_grid_line():
@@ -147,7 +147,7 @@ def test_simple_grid_line():
         assert torch.allclose(init, obs)
 
         action = torch.LongTensor([0, 0, 0])
-        obs, reward, done = env.step(action)
+        obs, reward, done, info = env.step(action)
 
         expected = torch.tensor(
             [
@@ -159,7 +159,7 @@ def test_simple_grid_line():
         assert torch.allclose(expected, obs)
 
         action = torch.LongTensor([2, 2, 2])
-        obs, reward, done = env.step(action)
+        obs, reward, done, info = env.step(action)
 
         expected = torch.tensor(
             [
@@ -171,7 +171,7 @@ def test_simple_grid_line():
         assert torch.allclose(expected, obs)
 
         action = torch.LongTensor([1, 1, 1])
-        obs, reward, done = env.step(action)
+        obs, reward, done, info = env.step(action)
 
         expected = torch.tensor(
             [
@@ -183,7 +183,7 @@ def test_simple_grid_line():
         assert torch.allclose(expected, obs)
 
         action = torch.LongTensor([1, 1, 1])
-        obs, reward, done = env.step(action)
+        obs, reward, done, info = env.step(action)
 
         expected = torch.tensor(
             [
@@ -195,7 +195,7 @@ def test_simple_grid_line():
         assert torch.allclose(expected, obs)
 
         action = torch.LongTensor([1, 1, 1])
-        obs, reward, done = env.step(action)
+        obs, reward, done, info = env.step(action)
 
         expected = torch.tensor(
             [
@@ -207,7 +207,7 @@ def test_simple_grid_line():
         assert torch.allclose(expected, obs)
 
         action = torch.LongTensor([0, 0, 0])
-        obs, reward, done = env.step(action)
+        obs, reward, done, info = env.step(action)
 
         expected = torch.tensor(
             [

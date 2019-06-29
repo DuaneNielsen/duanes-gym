@@ -66,7 +66,6 @@ class SimpleGrid(gym.Env):
 
     def step(self, actions):
         with torch.no_grad():
-            torch
             actions = actions.to(dtype=torch.long)
             actions = actions * (1 - self.terminated)
             self.position += actions
@@ -75,7 +74,7 @@ class SimpleGrid(gym.Env):
             self.map[self.range, self.position] = 1
             reward = self.rewards[self.position]
             self.terminated = torch.sum(self.map & self.terminal, dim=(1,))
-            return self.map, reward, self.terminated
+            return self.map, reward, self.terminated, {}
 
     def render(self, mode='human'):
         print(f'{self.map.data}')
@@ -101,10 +100,7 @@ class SimpleGridV2(gym.Env):
         height = len(tree.children)
         width = len(tree.children[0].children)
 
-        if height > 1 and width > 1:
-            self.action_space = gym.spaces.Discrete(4)
-        else:
-            self.action_space = gym.spaces.Discrete(2)
+        self.action_space = gym.spaces.Discrete(4)
 
         with torch.no_grad():
             self.map = torch.zeros(n, height, width, dtype=torch.long, requires_grad=False)
@@ -174,7 +170,7 @@ class SimpleGridV2(gym.Env):
             self.update_map()
             reward = self.rewards.unsqueeze(0).expand(10, -1, -1).flatten()[self.position_index()]
             self.terminated = torch.sum(self.map & self.terminal, dim=(1, 2))
-            return self.map.to(dtype=torch.float32), reward, self.terminated.to(dtype=torch.uint8)
+            return self.map.to(dtype=torch.float32), reward, self.terminated.to(dtype=torch.uint8), {}
 
     def render(self, mode='human'):
         print(f'{self.map.data}')
