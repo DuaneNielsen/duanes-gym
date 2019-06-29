@@ -8,7 +8,8 @@ setup(name='gym_duane',
                         'pymunk',
                         'pygame',
                         'opencv-python',
-                        'numpy'],
+                        'numpy',
+                        'lark-parser'],
       extras_require={
           'dev': [
               'pytest',
