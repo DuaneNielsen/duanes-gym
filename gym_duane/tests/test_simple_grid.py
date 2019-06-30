@@ -480,3 +480,14 @@ def test_parse_column():
     print(terminal_states)
     print(rewards)
     print(start_pos)
+
+
+def test_cuda():
+    env = gym.make('SimpleGrid-v2', n=10000, map_string='[[S, E, E, E, E, E, E, E, E, E, T(1.0)]]', device='cuda')
+    obs = env.reset()
+    env.render()
+
+    for i in range(500):
+        action = torch.LongTensor(10000).random_(2).to('cuda')
+        obs, reward, done, info = env.step(action)
+        env.render()
