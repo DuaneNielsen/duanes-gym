@@ -125,6 +125,21 @@ def test_simple_grid_v2():
         obs, reward, done, info = env.step(action)
 
 
+def test_simple_grid_v2_render():
+    env = gym.make('SimpleGrid-v2', n=3, map_string="""
+    [
+    [E, E, E, E, E],
+    [E, E, E, E, E],
+    [E, E, S, E, E],
+    [E, E, E, E, T(1.0)]
+    ]
+    """)
+
+    obs = env.reset()
+
+    env.render()
+
+
 def test_simple_grid_line():
     env = gym.make('SimpleGrid-v2', n=3, map_string="""
         [
@@ -202,13 +217,14 @@ def test_simple_grid_line():
 
     init = init.repeat(3, 1, 1)
     assert torch.allclose(expected, obs)
+    assert torch.all(done)
 
     action = torch.LongTensor([0, 0, 0])
     obs, reward, done, info = env.step(action)
 
     expected = torch.tensor(
         [
-            [0.0, 0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0],
         ]
     )
 
@@ -268,6 +284,82 @@ def test_simple_grid_line_reset():
 
     assert torch.allclose(expected, obs)
     assert torch.allclose(expected_done, done)
+
+
+def test_start():
+    env = gym.make('SimpleGrid-v2', n=1, map_string="""
+        [
+        [S, E],
+        [E, E]
+        ]
+        """)
+    state = env.reset()
+
+    expected = torch.zeros(2, 2)
+    expected[0, 0] = 1.0
+
+    assert torch.allclose(expected, state)
+
+    env = gym.make('SimpleGrid-v2', n=1, map_string="""
+        [
+        [E, E],
+        [E, S]
+        ]
+        """)
+    state = env.reset()
+
+    expected = torch.zeros(2, 2)
+    expected[1, 1] = 1.0
+
+    assert torch.allclose(expected, state)
+
+    env = gym.make('SimpleGrid-v2', n=1, map_string="""
+        [
+        [E, S],
+        [E, E]
+        ]
+        """)
+    state = env.reset()
+
+    expected = torch.zeros(2, 2)
+    expected[0, 1] = 1.0
+    print(expected, state)
+
+    assert torch.allclose(expected, state)
+
+    env = gym.make('SimpleGrid-v2', n=1, map_string="""
+        [
+        [E, E],
+        [S, E]
+        ]
+        """)
+    state = env.reset()
+
+    expected = torch.zeros(2, 2)
+    expected[1, 0] = 1.0
+    print(expected, state)
+
+    assert torch.allclose(expected, state)
+
+
+def test_simple_grid_y():
+    env = gym.make('SimpleGrid-v2', n=1, map_string="""
+        [
+        [S]
+        ]
+        """)
+    env.reset()
+    env.step(torch.tensor([0]))
+
+    env = gym.make('SimpleGrid-v2', n=1, map_string="""
+        [
+        [T, S, T]
+        ]
+        """)
+    env.reset()
+    env.step(torch.tensor([1]))
+    env.step(torch.tensor([1]))
+
 
 
 def test_parse():

@@ -3,6 +3,7 @@ import gym
 import logging
 from lark import Lark
 from torch.nn.functional import one_hot
+from colorama import Style, Fore, Back
 
 logger = logging.getLogger(__name__)
 
@@ -127,8 +128,8 @@ class SimpleGridV2(gym.Env):
                     self.terminal[i, j] = terminal_state
                     self.rewards[i, j] = reward
                     if is_start:
-                        self.start_x = torch.tensor([i])
-                        self.start_y = torch.tensor([j])
+                        self.start_x = torch.tensor([j])
+                        self.start_y = torch.tensor([i])
 
             self.position_y = self.start_x.repeat(self.n)
             self.position_x = self.start_y.repeat(self.n)
@@ -152,8 +153,8 @@ class SimpleGridV2(gym.Env):
 
     def reset(self):
         with torch.no_grad():
-            self.position_y = self.start_x.repeat(self.n)
-            self.position_x = self.start_y.repeat(self.n)
+            self.position_x = self.start_x.repeat(self.n)
+            self.position_y = self.start_y.repeat(self.n)
             self.terminated.zero_()
             self.update_map()
             return self.map.to(dtype=torch.float32)
@@ -174,9 +175,19 @@ class SimpleGridV2(gym.Env):
             self.position_y.clamp_(0, self.height - 1)
             self.reset_done()
             self.update_map()
-            reward = self.rewards.unsqueeze(0).expand(10, -1, -1).flatten()[self.position_index()]
+            reward = self.rewards.unsqueeze(0).expand(self.n, -1, -1).flatten()[self.position_index()]
             self.terminated = torch.sum(self.map & self.terminal, dim=(1, 2))
             return self.map.to(dtype=torch.float32), reward, self.terminated.to(dtype=torch.uint8), {}
 
     def render(self, mode='human'):
-        print(f'{self.map.data}')
+        s = '\n'
+        for i, row in enumerate(self.map[0]):
+            s = ''
+            for j, column in enumerate(row):
+                if self.map[0, i, j].item() == 1:
+                    c = f'@'
+                else:
+                    c = ' '
+                s = s + c
+            print(f'{Back.BLACK}{Fore.LIGHTGREEN_EX}{Style.BRIGHT}{s}{Style.RESET_ALL}')
+
