@@ -182,13 +182,28 @@ class SimpleGridV2(gym.Env):
                                                                                                     device=self.device), {}
 
     def render(self, mode='human'):
+
+        offset = self.position_y * self.width + self.position_x
+        values, counts = torch.unique(offset, return_counts=True)
+        bins = torch.zeros(self.height * self.width, device=self.device)
+        bins[values] = counts.float()
+        bins = bins / torch.sum(bins)
+        bins = bins.reshape(self.height, self.width)
+
         s = '\n'
-        for i, row in enumerate(self.map[0]):
+        for i, row in enumerate(bins):
             s = ''
             for j, column in enumerate(row):
-                if self.map[0, i, j].item() == 1:
-                    c = f'@'
-                else:
-                    c = ' '
+                v = bins[i, j].item()
+                c = "{0:.2f}".format(v)
+                color = Fore.BLUE
+                if v == 0:
+                    color = Fore.BLACK
+                if v > 0.1:
+                    color = Fore.RED
+                if 0.5 < v < 0.1:
+                    color = Fore.MAGENTA
+
+                c = f'{Back.BLACK}{color}{Style.BRIGHT}{c}{Style.RESET_ALL}'
                 s = s + c
-            print(f'{Back.BLACK}{Fore.LIGHTGREEN_EX}{Style.BRIGHT}{s}{Style.RESET_ALL}')
+            print(s)
