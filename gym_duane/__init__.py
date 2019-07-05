@@ -32,3 +32,8 @@ register(
     id='SimpleGrid-v2',
     entry_point='gym_duane.envs:SimpleGridV2'
 )
+
+register(
+    id='GridLunarLander-v0',
+    entry_point='gym_duane.envs:LunarLander'
+)

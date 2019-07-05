@@ -32,7 +32,7 @@ def test_line_grid():
 
 
 def test_simple_grid_v2():
-    env = gym.make('SimpleGrid-v2', n=3, map_string="""
+    env = gym.make('SimpleGrid-v2', n=3, device='cpu', map_string="""
     [
     [E, E, E, E, E],
     [E, E, E, E, E],
@@ -149,6 +149,29 @@ def test_simple_grid_v2_render():
     obs = env.step(action)
     env.render()
     print('')
+
+    action = torch.randint(4, size=(4000,))
+    obs = env.step(action)
+    env.render()
+    print('')
+
+    action = torch.randint(4, size=(4000,))
+    obs = env.step(action)
+    env.render()
+    print('')
+
+
+def test_lava():
+    env = gym.make('SimpleGrid-v2', n=1, device='cpu', map_string="""
+        [
+        [S, L, T]
+        ]
+        """)
+
+    env.reset()
+    state, reward, done, info = env.step(torch.tensor([1]))
+    assert reward[0].item() == -1.0
+    assert done[0] == 1
 
 
 def test_simple_grid_line():
