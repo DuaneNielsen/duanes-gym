@@ -10,9 +10,106 @@ UP = 2
 DOWN = 3
 NOP = 4
 
+lander = """
+[
+[L],
+[L],
+[L],
+[L],
+[L],
+[L],
+[L],
+[L],
+[L],
+[L],
+[L],
+[E],
+[E],
+[E],
+[E],
+[S],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[E],
+[T(1.0)],
+[T(0.5)],
+[T(0.25)],
+[T(0.25)],
+[L],
+[L],
+[L],
+[L],
+[L],
+[L],
+[L],
+[L],
+[L],
+[L],
+[L],
+[L]
+]
+"""
+
 
 class LunarLander(gym.Env):
-    def __init__(self, n, map, device):
+    def __init__(self, n, device):
         super().__init__()
         l = Lark(
             '''
@@ -26,11 +123,12 @@ class LunarLander(gym.Env):
             %ignore " " | NEWLINE 
             ''')
 
-        tree = l.parse(map)
+        tree = l.parse(lander)
 
         height = len(tree.children)
         width = len(tree.children[0].children)
 
+        self.observation_space_shape = ((height, width), (20,))
         self.action_space = gym.spaces.Discrete(4)
         self.device = device
 
@@ -114,9 +212,7 @@ class LunarLander(gym.Env):
     def observation(self):
         map = self.map.to(dtype=torch.float32, device=self.device)
         speed = one_hot(self.speed + 10, 20).to(dtype=torch.float32, device=self.device)
-        map = map.flatten(start_dim=1)
-        observation = torch.cat((map, speed), dim=1)
-        return observation
+        return map, speed
 
     def step(self, actions):
         with torch.no_grad():

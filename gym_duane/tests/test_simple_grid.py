@@ -41,6 +41,9 @@ def test_simple_grid_v2():
     ]
     """)
 
+    assert env.observation_space_shape[0][0] == 4
+    assert env.observation_space_shape[0][1] == 5
+
     obs = env.reset()
 
     init = torch.tensor(
@@ -175,7 +178,7 @@ def test_lava():
 
 
 def test_simple_grid_line():
-    env = gym.make('SimpleGrid-v2', n=3, map_string="""
+    env = gym.make('SimpleGrid-v2', n=3, device='cpu', map_string="""
         [
         [S, E, E, T]
         ]
@@ -267,7 +270,7 @@ def test_simple_grid_line():
 
 
 def test_simple_grid_line_reset():
-    env = gym.make('SimpleGrid-v2', n=2, map_string="""
+    env = gym.make('SimpleGrid-v2', n=2, device='cpu', map_string="""
         [
         [S, E, E, T]
         ]
@@ -321,7 +324,7 @@ def test_simple_grid_line_reset():
 
 
 def test_start():
-    env = gym.make('SimpleGrid-v2', n=1, map_string="""
+    env = gym.make('SimpleGrid-v2', n=1, device='cpu', map_string="""
         [
         [S, E],
         [E, E]
@@ -334,7 +337,7 @@ def test_start():
 
     assert torch.allclose(expected, state)
 
-    env = gym.make('SimpleGrid-v2', n=1, map_string="""
+    env = gym.make('SimpleGrid-v2', n=1, device='cpu', map_string="""
         [
         [E, E],
         [E, S]
@@ -347,7 +350,7 @@ def test_start():
 
     assert torch.allclose(expected, state)
 
-    env = gym.make('SimpleGrid-v2', n=1, map_string="""
+    env = gym.make('SimpleGrid-v2', n=1, device='cpu', map_string="""
         [
         [E, S],
         [E, E]
@@ -361,7 +364,7 @@ def test_start():
 
     assert torch.allclose(expected, state)
 
-    env = gym.make('SimpleGrid-v2', n=1, map_string="""
+    env = gym.make('SimpleGrid-v2', n=1, device='cpu', map_string="""
         [
         [E, E],
         [S, E]
@@ -377,7 +380,7 @@ def test_start():
 
 
 def test_simple_grid_y():
-    env = gym.make('SimpleGrid-v2', n=1, map_string="""
+    env = gym.make('SimpleGrid-v2', n=1, device='cpu', map_string="""
         [
         [S]
         ]
@@ -385,7 +388,7 @@ def test_simple_grid_y():
     env.reset()
     env.step(torch.tensor([0]))
 
-    env = gym.make('SimpleGrid-v2', n=1, map_string="""
+    env = gym.make('SimpleGrid-v2', n=1, device='cpu', map_string="""
         [
         [T, S, T]
         ]
@@ -525,3 +528,29 @@ def test_cuda():
         action = torch.LongTensor(10000).random_(2).to('cuda')
         obs, reward, done, info = env.step(action)
         env.render()
+
+
+def test_reset_rewards():
+    env = gym.make('SimpleGrid-v3', n=2, device='cpu', map_string='[[S, E(1.0), E, T]]')
+
+    env.reset()
+
+    action = torch.tensor([1, 1])
+    state, reward, done, info = env.step(action)
+    assert reward[0] == 1.0
+    action = torch.tensor([1, 1])
+    state, reward, done, info = env.step(action)
+    action = torch.tensor([0, 0])
+    state, reward, done, info = env.step(action)
+    assert reward[0] == 0.0
+    action = torch.tensor([1, 1])
+    state, reward, done, info = env.step(action)
+    state, reward, done, info = env.step(action)
+    state, reward, done, info = env.step(action)
+    state, reward, done, info = env.step(action)
+    assert reward[0] == 1.0
+    action = torch.tensor([1, 1])
+    state, reward, done, info = env.step(action)
+    action = torch.tensor([0, 0])
+    state, reward, done, info = env.step(action)
+    assert reward[0] == 0.0
