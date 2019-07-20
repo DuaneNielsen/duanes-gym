@@ -216,7 +216,7 @@ class SimpleGridV2(gym.Env):
 
 
 class SimpleGridV3(gym.Env):
-    def __init__(self, n, map_string, device):
+    def __init__(self, n, map_string, device, max_steps):
         super().__init__()
         l = Lark(
             '''
@@ -235,21 +235,24 @@ class SimpleGridV3(gym.Env):
         self.height = len(tree.children)
         self.width = len(tree.children[0].children)
 
-        self.observation_space_shape = ((self.height, self.width),)
+        self.observation_space_shape = (self.height, self.width)
         self.action_space = gym.spaces.Discrete(4)
         self.device = device
+        self.max_steps = max_steps
 
         with torch.no_grad():
             self.map = torch.zeros(n, self.height, self.width, dtype=torch.long, requires_grad=False, device=device)
             self.position_y = torch.zeros(n, dtype=torch.long, requires_grad=False, device=device)
             self.position_x = torch.zeros(n, dtype=torch.long, requires_grad=False, device=device)
-            self.terminated = torch.zeros(n, dtype=torch.long, requires_grad=False, device=device)
+            self.done = torch.zeros(n, dtype=torch.uint8, requires_grad=False, device=device)
+            self._reset = torch.zeros(n, dtype=torch.uint8, requires_grad=False, device=device)
             self.terminal = torch.zeros(self.height, self.width, dtype=torch.long, requires_grad=False, device=device)
             self.rewards = torch.zeros(self.height, self.width, dtype=torch.float32, requires_grad=False, device=device)
             self.reward_present = None
             self.reward_present_init = torch.zeros(n, self.height, self.width, dtype=torch.uint8, requires_grad=False,
                                                    device=device)
             self.range = torch.arange(n, device=device)
+            self.step_counter = torch.zeros(n, dtype=torch.int16, device=device)
             self.start = (0, 0)
             self.n = n
 
@@ -298,26 +301,34 @@ class SimpleGridV3(gym.Env):
             self.position_x = self.start_x.repeat(self.n)
             self.position_y = self.start_y.repeat(self.n)
             self.reward_present = self.reward_present_init.clone()
-            self.terminated.zero_()
+            self.done.zero_()
+            self._reset.zero_()
             self.update_map()
             return self.map.to(dtype=torch.float32)
 
     def reset_done(self):
-        done = torch.masked_select(torch.arange(self.terminated.size(0), device=self.device),
-                                   self.terminated.to(dtype=torch.uint8))
+        done = torch.masked_select(torch.arange(self.done.size(0), device=self.device),
+                                   self.done)
+
         self.position_x[done] = self.start_x
         self.position_y[done] = self.start_y
         self.reward_present[done] = self.reward_present_init[done]
-        self.terminated.zero_()
+        self.step_counter[done] = 0
+        self._reset.zero_()
+        self._reset[done] = 1
+        self.done.zero_()
 
     def step(self, actions):
         with torch.no_grad():
+
             actions = one_hot(actions, 4).float()
             actions = actions.matmul(self.t).long()
             self.position_x += actions[:, 0]
             self.position_y += actions[:, 1]
             self.position_x.clamp_(0, self.width - 1)
             self.position_y.clamp_(0, self.height - 1)
+            self.step_counter += 1
+
             self.reset_done()
             self.update_map()
 
@@ -326,9 +337,48 @@ class SimpleGridV3(gym.Env):
             reward = reward * self.reward_present.flatten()[self.position_index()].float()
             self.reward_present.flatten()[self.position_index()] = False
 
-            self.terminated = torch.sum(self.map & self.terminal, dim=(1, 2))
-            return self.map.to(dtype=torch.float32, device=self.device), reward, self.terminated.to(dtype=torch.uint8,
-                                                                                                    device=self.device), {}
+            in_terminal_state = torch.sum(self.map & self.terminal, dim=(1, 2)).byte()
+            out_of_time = (self.step_counter >= self.max_steps)
+            self.done = in_terminal_state | out_of_time
+
+            return self.map.to(dtype=torch.float32, device=self.device), reward, self.done, self._reset, {}
+
+    def lookahead(self):
+        """
+        Allows a one step lookahead from the current state
+        :return: a tensor with dimensions ( num of simulations, action_taken, resulting state) and
+        a tensor of rewards with dimensions( num of simulations, action_taken, reward)
+        """
+        with torch.no_grad():
+            actions = torch.arange(self.action_space.n, device=self.device).repeat(self.n)
+            x = self.position_x.repeat_interleave(self.action_space.n)
+            y = self.position_y.repeat_interleave(self.action_space.n)
+
+            zero_if_terminal = (~self.done).float().repeat(self.action_space.n)
+
+            actions = one_hot(actions, 4).float() * zero_if_terminal.unsqueeze(1)
+            actions = actions.matmul(self.t).long()
+            x += actions[:, 0]
+            y += actions[:, 1]
+            x.clamp_(0, self.width - 1)
+            y.clamp_(0, self.height - 1)
+
+            map = torch.zeros(self.n * self.action_space.n, self.height, self.width, dtype=torch.long, requires_grad=False, device=self.device)
+
+            base = torch.arange(self.n * self.action_space.n, device=self.device) * self.height * self.width
+            offset = y * self.width + x
+            index = base + offset
+
+            map.flatten()[index] = 1.0
+
+            reward = self.reward_present.float() * self.rewards
+            reward = reward.unsqueeze(1).expand(self.n, self.action_space.n, -1, -1).flatten()[index]
+            reward = reward * zero_if_terminal
+            reward = reward.reshape(self.n, self.action_space.n).to(device=self.device)
+
+            map = map.reshape(self.n, self.action_space.n, self.height, self.width).to(dtype=torch.float32, device=self.device)
+
+            return map, reward
 
     def render(self, mode='human'):
 

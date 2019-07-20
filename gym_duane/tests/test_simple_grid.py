@@ -4,6 +4,8 @@ import envs
 import numpy as np
 import torch
 
+import os
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 def test_simple_grid():
     env = gym.make('SimpleGrid-v0', n=10, map_string='[T(-1.0), S, T(1.0)]')
@@ -16,7 +18,6 @@ def test_simple_grid():
         obs, reward, done, info = env.step(action)
         print(reward, done)
         env.render()
-
 
 def test_line_grid():
     env = gym.make('SimpleGrid-v0', n=10, map_string='[S, E, E, E, E, E, E, E, E, E, T(1.0)]')
@@ -162,6 +163,20 @@ def test_simple_grid_v2_render():
     obs = env.step(action)
     env.render()
     print('')
+
+
+def test_bandit():
+    env = gym.make('SimpleGrid-v3', n=10, device='cuda', max_steps=50,
+                   map_string='[[T(-1.0), S, T(1.0)]]')
+    obs = env.reset()
+    env.render()
+
+    for i in range(10):
+        action = torch.LongTensor(10).random_(0, 2).cuda()
+        print(action)
+        obs, reward, done, info = env.step(action)
+        print(reward, done)
+        env.render()
 
 
 def test_lava():
@@ -398,6 +413,59 @@ def test_simple_grid_y():
     env.step(torch.tensor([1]))
 
 
+def test_done_flag():
+    env = gym.make('SimpleGrid-v3', n=3, device='cuda', max_steps=60, map_string="""
+        [
+        [T(-1.0), S, T(1.0)]
+        ]
+        """)
+
+    s = env.reset()
+    for _ in range(90):
+        action = torch.randint(4, (3,)).cuda()
+        n, reward, done, reset, info = env.step(action)
+        term = torch.sum(n * torch.tensor([1.0, 0.0, 1.0]).cuda(), dim=[1, 2])
+        assert torch.allclose(term, done.float())
+
+
+def test_reset_flag():
+    env = gym.make('SimpleGrid-v3', n=3, device='cuda', max_steps=60, map_string="""
+        [
+        [T(-1.0), S, T(1.0)]
+        ]
+        """)
+
+    s = env.reset()
+    for _ in range(90):
+        action = torch.randint(4, (3,)).cuda()
+        n, reward, done, reset, info = env.step(action)
+        term = torch.sum(s * torch.tensor([1.0, 0.0, 1.0]).cuda(), dim=[1, 2])
+        assert torch.allclose(term, reset.float())
+        s = n.clone()
+
+
+def test_terminal_states():
+    env = gym.make('SimpleGrid-v3', n=3, device='cuda', max_steps=40, map_string="""
+        [
+        [T(-1.0), S, T(1.0)]
+        ]
+        """)
+
+    s = env.reset()
+    for _ in range(100):
+        action = torch.randint(4, (3,)).cuda()
+        n, reward, done, reset, info = env.step(action)
+
+        term = torch.sum(n * torch.tensor([1.0, 0.0, 1.0]).cuda(), dim=[1, 2])
+        assert torch.allclose(term, done.float())
+
+        left = torch.tensor([[1.0, 0.0, 0.0]]).cuda()
+        right = torch.tensor([[0.0, 0.0, 1.0]]).cuda()
+        left_action = (action == 0) & ~reset
+        right_action = (action == 1) & ~reset
+        assert torch.allclose(n[left_action], left)
+        assert torch.allclose(n[right_action], right)
+        s = n.clone()
 
 def test_parse():
     from lark import Lark
@@ -531,26 +599,137 @@ def test_cuda():
 
 
 def test_reset_rewards():
-    env = gym.make('SimpleGrid-v3', n=2, device='cpu', map_string='[[S, E(1.0), E, T]]')
+    env = gym.make('SimpleGrid-v3', n=2, device='cpu', map_string='[[S, E(1.0), E, T]]', max_steps=10)
 
     env.reset()
 
     action = torch.tensor([1, 1])
-    state, reward, done, info = env.step(action)
+    state, reward, done, reset, info = env.step(action)
     assert reward[0] == 1.0
+    assert reward[1] == 1.0
+
     action = torch.tensor([1, 1])
-    state, reward, done, info = env.step(action)
-    action = torch.tensor([0, 0])
-    state, reward, done, info = env.step(action)
+    state, reward, done, reset, info = env.step(action)
     assert reward[0] == 0.0
-    action = torch.tensor([1, 1])
-    state, reward, done, info = env.step(action)
-    state, reward, done, info = env.step(action)
-    state, reward, done, info = env.step(action)
-    state, reward, done, info = env.step(action)
-    assert reward[0] == 1.0
-    action = torch.tensor([1, 1])
-    state, reward, done, info = env.step(action)
+    assert reward[1] == 0.0
+
     action = torch.tensor([0, 0])
-    state, reward, done, info = env.step(action)
+    state, reward, done, reset, info = env.step(action)
     assert reward[0] == 0.0
+
+    action = torch.tensor([0, 0])
+    state, reward, done, reset, info = env.step(action)
+    assert reward[0] == 0.0
+
+
+
+
+def test_next_states():
+    env = gym.make('SimpleGrid-v3', n=2, device='cpu', map_string='[[T(1.0), S, T(-1.0)]]', max_steps=10)
+
+    env.reset()
+    env.render()
+    states, rewards = env.lookahead()
+    expected_state = torch.tensor([
+        [
+            [[1.0, 0.0, 0.0]],
+            [[0.0, 0.0, 1.0]],
+            [[0.0, 1.0, 0.0]],
+            [[0.0, 1.0, 0.0]]
+        ],
+        [
+            [[1.0, 0.0, 0.0]],
+            [[0.0, 0.0, 1.0]],
+            [[0.0, 1.0, 0.0]],
+            [[0.0, 1.0, 0.0]]
+        ]
+    ])
+    assert torch.allclose(states, expected_state)
+
+    exp_reward = torch.tensor([
+        [
+            [1.0, -1.0, 0.0, 0.0]
+        ],
+        [
+            [1.0, -1.0, 0.0, 0.0]
+        ]
+    ])
+    assert torch.allclose(rewards, exp_reward)
+
+    action = torch.tensor([0, 1])
+
+    state, reward, done, reset, info = env.step(action)
+
+    env.render()
+    states, rewards = env.lookahead()
+    expected_state = torch.tensor([
+        [
+            [[1.0, 0.0, 0.0]],
+            [[1.0, 0.0, 0.0]],
+            [[1.0, 0.0, 0.0]],
+            [[1.0, 0.0, 0.0]]
+        ],
+        [
+            [[0.0, 0.0, 1.0]],
+            [[0.0, 0.0, 1.0]],
+            [[0.0, 0.0, 1.0]],
+            [[0.0, 0.0, 1.0]]
+        ]
+    ])
+    assert torch.allclose(states, expected_state)
+
+    exp_reward = torch.tensor([
+        [
+            [0.0, 0.0, 0.0, 0.0]
+        ],
+        [
+            [0.0, 0.0, 0.0, 0.0]
+        ]
+    ])
+    assert torch.allclose(rewards, exp_reward)
+
+    action = torch.tensor([0, 1])
+
+    state, reward, done, reset, info = env.step(action)
+    print(state, reward)
+    next_state, next_reward = env.lookahead()
+    print(next_state, next_reward)
+
+    expected_state = torch.tensor([
+        [
+            [[1.0, 0.0, 0.0]],
+            [[0.0, 0.0, 1.0]],
+            [[0.0, 1.0, 0.0]],
+            [[0.0, 1.0, 0.0]]
+        ],
+        [
+            [[1.0, 0.0, 0.0]],
+            [[0.0, 0.0, 1.0]],
+            [[0.0, 1.0, 0.0]],
+            [[0.0, 1.0, 0.0]]
+        ]
+    ])
+    assert torch.allclose(next_state, expected_state)
+
+    exp_reward = torch.tensor([
+        [
+            [1.0, -1.0, 0.0, 0.0]
+        ],
+        [
+            [1.0, -1.0, 0.0, 0.0]
+        ]
+    ])
+    assert torch.allclose(next_reward, exp_reward)
+
+
+
+def test_step_counter():
+    env = gym.make('SimpleGrid-v3', n=40, device='cuda', map_string='[[S, E, E, E, E, T(1.0)]]', max_steps=5)
+
+    env.reset()
+    for _ in range(500):
+        action = torch.randint(0, 3, (40,)).cuda()
+        #action = torch.tensor([0, 1]).cuda()
+        state, reward, done, reset, info = env.step(action)
+        env.render()
+        #assert reward[0] == 0.0
