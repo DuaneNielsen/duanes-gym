@@ -3,6 +3,7 @@ from random import randint
 import envs
 import numpy as np
 import torch
+from wrappers import LookAhead, Reset, BatchTensor
 
 import os
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -174,7 +175,7 @@ def test_bandit():
     for i in range(10):
         action = torch.LongTensor(10).random_(0, 2).cuda()
         print(action)
-        obs, reward, done, info = env.step(action)
+        obs, reward, done, info, reset = env.step(action)
         print(reward, done)
         env.render()
 
@@ -629,7 +630,7 @@ def test_next_states():
 
     env.reset()
     env.render()
-    states, rewards = env.lookahead()
+    states, rewards, done, info = env.lookahead()
     expected_state = torch.tensor([
         [
             [[1.0, 0.0, 0.0]],
@@ -661,7 +662,7 @@ def test_next_states():
     state, reward, done, reset, info = env.step(action)
 
     env.render()
-    states, rewards = env.lookahead()
+    states, rewards, done, info  = env.lookahead()
     expected_state = torch.tensor([
         [
             [[1.0, 0.0, 0.0]],
@@ -692,7 +693,7 @@ def test_next_states():
 
     state, reward, done, reset, info = env.step(action)
     print(state, reward)
-    next_state, next_reward = env.lookahead()
+    next_state, next_reward, done, info = env.lookahead()
     print(next_state, next_reward)
 
     expected_state = torch.tensor([
@@ -733,3 +734,69 @@ def test_step_counter():
         state, reward, done, reset, info = env.step(action)
         env.render()
         #assert reward[0] == 0.0
+
+
+def test_lookahead_wrapper():
+    env = gym.make('LunarLander-v2')
+    env = LookAhead(env)
+    obs = env.reset()
+    done = False
+
+    for _ in range(1000):
+        if done:
+            obs = env.reset()
+        obs, reward, done, info = env.lookahead()
+        assert obs.shape[0] == 4
+        action = randint(0, env.action_space.n -1)
+        obs, reward, done, info = env.step(action)
+        env.render()
+
+
+def test_reset_wrapper():
+    env = gym.make('LunarLander-v2')
+    env = Reset(env)
+    obs = env.reset()
+    total_reward = 0.0
+
+    for _ in range(1000):
+        action = randint(0, env.action_space.n -1)
+        obs, reward, done, reset, info = env.step(action)
+        total_reward += reward
+        if reset: print('RESET')
+        env.render()
+
+    assert total_reward < 0.0
+
+
+def test_batch_tensor_wrapper():
+    env = gym.make('LunarLander-v2')
+    env = Reset(env)
+    env = BatchTensor(env, device='cuda')
+    obs = env.reset()
+    total_reward = 0.0
+
+    for _ in range(1000):
+        action = torch.tensor([randint(0, env.action_space.n -1)]).unsqueeze(0)
+        obs, reward, done, reset, info = env.step(action)
+        env.render()
+        total_reward += reward
+
+    assert total_reward < 0.0
+
+def test_batch_tensor_wrapper_with_lookahead():
+    env = gym.make('LunarLander-v2')
+    env = LookAhead(env)
+    env = Reset(env)
+    env = BatchTensor(env, device='cuda')
+    obs = env.reset()
+    total_reward = 0.0
+
+    for _ in range(1000):
+        obs, reward, done, info = env.lookahead()
+        action = torch.tensor([randint(0, env.action_space.n -1)]).unsqueeze(0)
+        obs, reward, done, reset, info = env.step(action)
+        env.render()
+        total_reward += reward.item()
+
+    assert total_reward < 0.0
+    print(total_reward)

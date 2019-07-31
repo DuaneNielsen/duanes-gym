@@ -216,7 +216,7 @@ class SimpleGridV2(gym.Env):
 
 
 class SimpleGridV3(gym.Env):
-    def __init__(self, n, map_string, device, max_steps):
+    def __init__(self, n, map_string, device, max_steps, reward_per_timestep=-0.0):
         super().__init__()
         l = Lark(
             '''
@@ -255,6 +255,7 @@ class SimpleGridV3(gym.Env):
             self.step_counter = torch.zeros(n, dtype=torch.int16, device=device)
             self.start = (0, 0)
             self.n = n
+            self.reward_per_timestep = reward_per_timestep
 
             def elem(*args):
                 terminal_state = 0
@@ -335,6 +336,7 @@ class SimpleGridV3(gym.Env):
             # give rewards if not already given
             reward = self.rewards.unsqueeze(0).expand(self.n, -1, -1).flatten()[self.position_index()]
             reward = reward * self.reward_present.flatten()[self.position_index()].float()
+            reward += self.reward_per_timestep
             self.reward_present.flatten()[self.position_index()] = False
 
             in_terminal_state = torch.sum(self.map & self.terminal, dim=(1, 2)).byte()
@@ -376,9 +378,12 @@ class SimpleGridV3(gym.Env):
             reward = reward * zero_if_terminal
             reward = reward.reshape(self.n, self.action_space.n).to(device=self.device)
 
-            map = map.reshape(self.n, self.action_space.n, self.height, self.width).to(dtype=torch.float32, device=self.device)
+            map = map.reshape(self.n, self.action_space.n, self.height, self.width)
 
-            return map, reward
+            done = map & self.terminal
+            done = torch.sum(done, dim=(2, 3)).byte()
+
+            return map.to(dtype=torch.float32, device=self.device), reward, done, {}
 
     def render(self, mode='human'):
 
